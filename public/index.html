@@ -299,7 +299,7 @@ function titleScreen(){
   <p><b>Moving (3D, first person):</b> <kbd>W</kbd>/<kbd>S</kbd> move, <kbd>A</kbd>/<kbd>D</kbd> turn (no mouse needed), or click the screen to look with the <kbd>mouse</kbd> (then A/D step sideways) · hold <kbd>Shift</kbd> to sneak · hold <kbd>Space</kbd> to sprint · <kbd>E</kbd> search / hide / talk / dig · <kbd>M</kbd> mute.</p>
   <p><b>Outside:</b> your torch only lights what's in front of you. The <b>radar</b> at the top of the screen shows the creature as a red blip each time the sweep passes it. Every sound you make spreads across the floor as a ring. If it reaches the creature, it comes. Hide in wardrobes and cars.</p>
   <p><b>Not everyone is who they seem.</b> Sometimes the creature pretends to be a survivor calling for help. Talk to them and look at them closely. If something's wrong, shine your torch in their eyes (<kbd>F</kbd>) and it will flee for a while. A torch flash in the creature's eyes also scares it off briefly.</p>
-  <p><b>Tunnels:</b> climb down into your basement and dig through the earth yourself. Face a wall and press <kbd>E</kbd> to dig. Put up lights with <kbd>L</kbd> and upgrade them (candle → lantern → bulb → floodlight). Brighter tunnels are faster to dig. Weak soil collapses, so brace sections with <kbd>1</kbd> planks, <kbd>2</kbd> metal or <kbd>3</kbd> scaffold poles. Each support also strengthens the sections next to it. Break into other buildings' basements to sneak in from below.</p>
+  <p><b>Tunnels:</b> climb down into your basement and dig through the earth yourself. Face a wall and press <kbd>E</kbd> to dig. Every second section gets a free candle automatically. Upgrade lights (or add more) with <kbd>L</kbd> (candle → lantern → bulb → floodlight). Brighter tunnels are faster to dig. Weak soil collapses, so brace sections with <kbd>1</kbd> planks, <kbd>2</kbd> metal or <kbd>3</kbd> scaffold poles. Each support also strengthens the sections next to it. Break into other buildings' basements to sneak in from below.</p>
   <p><b>People:</b> you'll find survivors who can help you, but every one is another mouth to feed. Your choices decide which of the 11 endings you get.</p>
   <p class="small">Needs a computer with a keyboard. A mouse is optional. Best with headphones, in the dark. Your game saves automatically every day.</p></div></div>`);
   if(ACC.online===null)checkOnline().then(async on=>{if(on&&ACC.token){try{await syncFromServer()}catch(e){if(e.status===401)sessionLost()}}if($('#acct'))titleScreen()});
@@ -511,6 +511,14 @@ function lightCheck(c){
   return null;
 }
 function lightDo(c){const lv=(c.light||0)+1,L=LIGHTS[lv];for(const k in L.cost)G.inv[k]-=L.cost[k];c.light=lv;return lv===1?'🕯️ You placed a candle. Press L again to upgrade it.':`${L.ic} Upgraded to ${L.n.toLowerCase()}!`}
+// every 2nd section gets a free candle: walk outward from home, light any section with no lit neighbour
+function autoLight(){
+  const home=G.tunnel[6*TW+2],seen=new Set([home]),q=[home];let added=0;
+  while(q.length){const c=q.shift();
+    if(c.dug&&!c.b&&!c.light&&!nbrs(c).some(n=>n.dug&&(n.light||n.b))){c.light=1;added++}
+    for(const n of nbrs(c))if(n.dug&&!seen.has(n)){seen.add(n);q.push(n)}}
+  return added;
+}
 function digLight(c){let lv=c&&c.light||0;if(c)for(const n of nbrs(c))if(n.dug)lv=Math.max(lv,n.light||0);return lv}
 
 /* ---------- tunnels (3D first-person) ---------- */
@@ -556,7 +564,7 @@ function startTunnel3D(){
 function stopTunnel(){if(TU&&TU.running){TU.running=false;stopDrone();unlock();gl.style.display='none';cv.style.display='none'}}
 function tunMsg(t,d=2.8,c=''){TU.msg=t;TU.msgT=d;TU.msgc=c}
 function buildTunnel3D(){
-  const tx=tunTex();
+  const tx=tunTex();TU.autoLit=autoLight();
   if(R3.scene)disposeScene(R3.scene);
   const sc=new THREE.Scene();sc.background=new THREE.Color(0x030202);sc.fog=new THREE.FogExp2(0x030202,.11);
   R3.scene=sc;sc.add(R3.camera);
@@ -671,7 +679,7 @@ function tunUpdate(dt){
       if(r.caved){hiss(.9,.35,300);tone(45,.9,'sawtooth',.12,.5);TU.shake=.6;
         const here=tunHere();if(!here||!here.dug){TU.px=(d.c.x+.5)*TT;TU.pz=(d.c.y+.5)*TT}}
       if(r.dead){stopTunnel();return finish('buried')}
-      tunMsg(r.msg,3.2,r.cls);buildTunnel3D();saveProgress();
+      buildTunnel3D();tunMsg(r.msg+(TU.autoLit&&!r.caved?' 🕯️ A candle was set up.':''),3.2,r.cls);saveProgress();
     }
   }
   const here=tunHere();
