@@ -52,7 +52,7 @@ label{font-size:14px;margin-right:12px;cursor:pointer}
 #gl{position:fixed;inset:0;display:none;width:100vw;height:100vh;cursor:pointer}
 #cv{position:fixed;inset:0;display:none;pointer-events:none}
 #dlg{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.75);z-index:10;padding:16px}
-.box{background:var(--panel);border:1px solid var(--line);padding:26px;max-width:540px;border-radius:6px;font-size:17px;line-height:1.55}
+.box{background:var(--panel);border:1px solid var(--line);padding:26px;max-width:540px;max-height:92vh;overflow:auto;border-radius:6px;font-size:17px;line-height:1.55}
 .box .ic{font-size:44px}
 .ending{max-width:640px;margin:8vh auto 0;text-align:center;font-size:19px;line-height:1.7}
 .ending .ic{font-size:70px}
@@ -94,15 +94,32 @@ const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function wpick(w){let s=0;for(const k in w)s+=w[k];let r=Math.random()*s;for(const k in w){if((r-=w[k])<0)return k}return Object.keys(w)[0]}
 
+/* ---------- settings ---------- */
+const SET=(()=>{const d={vol:80,loudGlass:false,screams:true,jump:true,heart:true};try{return{...d,...JSON.parse(localStorage.getItem('qo_settings')||'{}')}}catch(e){return d}})();
+function saveSet(){try{localStorage.setItem('qo_settings',JSON.stringify(SET))}catch(e){}}
+let MASTER=null;
+function outNode(){if(!MASTER){MASTER=AC.createGain();MASTER.connect(AC.destination)}MASTER.gain.value=SET.vol/100;return MASTER}
+function glassSound(){if(SET.loudGlass){hiss(.6,.3,6000)}else{hiss(.25,.05,3000);[1900,2500,2200].forEach((f,i)=>setTimeout(()=>tone(f,.18,'sine',.02),i*80))}}
+function settingsDlg(){
+  const ck=(k,l,d)=>`<label style="display:block;margin:12px 0;cursor:pointer"><input type="checkbox" ${SET[k]?'checked':''} onchange="SET['${k}']=this.checked;saveSet()"> <b>${l}</b><br><span class="small dim" style="display:block;margin-left:24px">${d}</span></label>`;
+  dlg(`<div class="ic">⚙️</div><h2 style="margin:0 0 6px">Settings</h2>
+  <label style="display:block;margin:10px 0"><b>Volume</b> <span id="vv">${SET.vol}%</span><br><input type="range" min="0" max="100" value="${SET.vol}" style="width:100%" oninput="SET.vol=+this.value;document.getElementById('vv').textContent=this.value+'%';if(MASTER)MASTER.gain.value=SET.vol/100;saveSet()"></label>
+  ${ck('loudGlass','Loud glass smash','The big crash when you break open a glass case. Off = a soft tinkle instead. (The creature still hears it either way!)')}
+  ${ck('screams','Creature screams','The shriek when it spots you or catches you. Off = a quiet low tone.')}
+  ${ck('jump','Jump scare','Its face filling the screen when it catches you. Off = the screen just goes dark.')}
+  ${ck('heart','Heartbeat','The thumping sound when the creature is close.')}
+  <div style="margin-top:14px"><button class="btn amber" onclick="Object.assign(SET,{loudGlass:false,screams:false,jump:false,heart:false});saveSet();settingsDlg()">😌 Make it less scary</button><button class="btn" onclick="Object.assign(SET,{loudGlass:true,screams:true,jump:true,heart:true});saveSet();settingsDlg()">😱 Full scary</button></div>
+  <button class="btn" style="margin-top:6px" onclick="closeDlg()">Done</button>`);
+}
 /* ---------- audio ---------- */
 let AC=null,muted=false,drone=null;
 function ac(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume()}catch(e){}return AC}
-function tone(f,d,type='sine',v=.05,slide=0){if(muted||!ac())return;try{const t=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,f*slide),t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+d+.05)}catch(e){}}
-function hiss(d,v=.1,lp=3000){if(muted||!ac())return;try{const n=AC.sampleRate*d,b=AC.createBuffer(1,n,AC.sampleRate),ch=b.getChannelData(0);for(let i=0;i<n;i++)ch[i]=(Math.random()*2-1)*(1-i/n);const s=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain();f.type='lowpass';f.frequency.value=lp;g.gain.value=v;s.buffer=b;s.connect(f);f.connect(g);g.connect(AC.destination);s.start()}catch(e){}}
-function startDrone(){if(muted||!ac()||drone)return;try{const o=AC.createOscillator(),o2=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=48;o2.type='triangle';o2.frequency.value=48.6;g.gain.value=.025;o.connect(g);o2.connect(g);g.connect(AC.destination);o.start();o2.start();drone={o,o2,g}}catch(e){}}
+function tone(f,d,type='sine',v=.05,slide=0){if(muted||!ac())return;try{const t=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,f*slide),t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g);g.connect(outNode());o.start(t);o.stop(t+d+.05)}catch(e){}}
+function hiss(d,v=.1,lp=3000){if(muted||!ac())return;try{const n=AC.sampleRate*d,b=AC.createBuffer(1,n,AC.sampleRate),ch=b.getChannelData(0);for(let i=0;i<n;i++)ch[i]=(Math.random()*2-1)*(1-i/n);const s=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain();f.type='lowpass';f.frequency.value=lp;g.gain.value=v;s.buffer=b;s.connect(f);f.connect(g);g.connect(outNode());s.start()}catch(e){}}
+function startDrone(){if(muted||!ac()||drone)return;try{const o=AC.createOscillator(),o2=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=48;o2.type='triangle';o2.frequency.value=48.6;g.gain.value=.025;o.connect(g);o2.connect(g);g.connect(outNode());o.start();o2.start();drone={o,o2,g}}catch(e){}}
 function stopDrone(){if(drone){try{drone.o.stop();drone.o2.stop()}catch(e){}drone=null}}
-const heartbeat=()=>{tone(60,.12,'sine',.18);setTimeout(()=>tone(52,.14,'sine',.14),140)};
-const scream=()=>{tone(700,.9,'sawtooth',.06,.25);tone(1050,.7,'square',.025,.3);hiss(.5,.08,1500)};
+const heartbeat=()=>{if(!SET.heart)return;tone(60,.12,'sine',.18);setTimeout(()=>tone(52,.14,'sine',.14),140)};
+const scream=()=>{if(!SET.screams){tone(110,.5,'sine',.05,.8);return}tone(700,.9,'sawtooth',.06,.25);tone(1050,.7,'square',.025,.3);hiss(.5,.08,1500)};
 
 /* ---------- data ---------- */
 const ITEMS={food:'🥫',water:'💧',meds:'💊',planks:'🪵',metal:'🔩',poles:'🏗️',shovel:'🪏',pickaxe:'⛏️'};
@@ -273,7 +290,7 @@ function newRunAsk(){
 function titleScreen(){
   const got=gotEndings(),sv=loadLocal(),hasRun=sv&&sv.game;
   show(`<div class="wrap"><h1>THE QUIET OUTSIDE</h1><div class="center" style="letter-spacing:.6em;color:#d24b43;font-size:20px;margin:-4px 0 14px">3D</div><div class="tag">Something is out there. It hunts by sound.<br>Survive 20 days.</div>
-  <div class="center">${hasRun?`<button class="btn big amber" onclick="continueGame()">CONTINUE · Day ${sv.game.day}</button><br>`:''}<button class="btn big" onclick="newRunAsk()">${hasRun?'NEW GAME':'BEGIN'}</button></div>
+  <div class="center">${hasRun?`<button class="btn big amber" onclick="continueGame()">CONTINUE · Day ${sv.game.day}</button><br>`:''}<button class="btn big" onclick="newRunAsk()">${hasRun?'NEW GAME':'BEGIN'}</button><br><button class="btn" style="margin-top:8px" onclick="settingsDlg()">⚙️ Settings</button></div>
   <div id="acct" class="center small" style="margin-top:18px;line-height:1.9">${acctHTML()}</div>
   <div class="center dim small" style="margin-top:10px">Endings found: ${got.length} / ${Object.keys(ENDINGS).length}</div>
   <div class="how">
@@ -321,7 +338,7 @@ function dayScreen(){
     <button class="btn" onclick="tunnelScreen()">🕳️ Go down to the tunnels (${G.energy} energy)</button>
     <button class="btn" ${G.acted?'disabled':''} onclick="rest()">💤 Rest (+25 HP for you)</button>
     ${G.sewer?`<button class="btn red" onclick="sewerAsk()">🌊 Escape through the sewers</button>`:''}
-    <button class="btn amber" onclick="endDay()">🌙 End the day</button></div>
+    <button class="btn amber" onclick="endDay()">🌙 End the day</button> <button class="btn" onclick="settingsDlg()">⚙️ Settings</button></div>
     ${G.acted?'<p class="dim small">You\'ve used your main action today. You can still dig if you have energy, or end the day.</p>':''}
     <p class="dim small" style="margin-top:20px">Strange files found: ${G.files}/3 · Buildings linked by tunnel: ${Object.values(G.locs).filter(l=>l.tunnel).length}/6</p></div>`;
   show(h);
@@ -1036,7 +1053,7 @@ function jumpscare(){
   cx.clearRect(0,0,innerWidth,innerHeight);cx.fillStyle='rgba(140,0,0,.35)';cx.fillRect(0,0,innerWidth,innerHeight);
 }
 function caught(){
-  if(!S.running)return;S.running=false;stopDrone();scream();unlock();jumpscare();
+  if(!S.running)return;S.running=false;stopDrone();scream();unlock();if(SET.jump)jumpscare();else{cx.clearRect(0,0,innerWidth,innerHeight);cx.fillStyle='rgba(0,0,0,.9)';cx.fillRect(0,0,innerWidth,innerHeight)}
   const y=you();y.hp-=45;
   let txt=`🌑 It caught you at the ${LOCS[S.id].name.toLowerCase()}. You tore free and ran, but dropped everything (-45 HP).`;
   if(S.follower){G.lost++;txt+=` ${S.follower.name} didn't make it out.`}
@@ -1106,7 +1123,7 @@ function finishSearch(ct){
   const L=LOCS[S.id],dep=1/(1+S.L.visits*.55),chance=Math.min(.97,.85*dep+(S.L.bonus?.25:0));
   if(ct.items){R3.scene.remove(ct.items);ct.items=null}
   if(ct.mesh)ct.mesh.material.color.multiplyScalar(.45);
-  if(ct.kind==='glass'){noise(S.px,S.py,400,'140,200,255');hiss(.6,.3,6000);showMsg('💥 CRASH! The glass shattered!',2);if(ct.glass){R3.scene.remove(ct.glass);ct.glass=null}}
+  if(ct.kind==='glass'){noise(S.px,S.py,400,'140,200,255');glassSound();showMsg(SET.loudGlass?'💥 CRASH! The glass shattered!':'🔊 The glass broke. That made some noise...',2);if(ct.glass){R3.scene.remove(ct.glass);ct.glass=null}}
   if(Math.random()>chance){if(ct.kind!=='glass')showMsg('Empty.',1.2);return}
   let n=ct.kind==='glass'?2+ri2(0,1):1+(Math.random()<.4?1:0);if(S.L.bonus)n++;
   const got=[];
