@@ -1,5 +1,4 @@
-// Cloudflare Pages Function: accounts + cloud saves for The Quiet Outside 3D.
-// Needs a KV namespace bound to this Pages project with the variable name SAVES.
+// Accounts + cloud saves for The Quiet Outside 3D. Uses the KV namespace bound as SAVES.
 const J = (o, s = 200) => new Response(JSON.stringify(o), {
   status: s,
   headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
@@ -19,10 +18,9 @@ function same(a, b) {
   return r === 0;
 }
 
-export async function onRequest({ request, env, params }) {
+export async function handleApi(request, env, path) {
   const KV = env.SAVES;
   if (!KV) return J({ error: 'Online saving is not set up on the server yet.' }, 503);
-  const path = [].concat(params.path || []).join('/');
   const method = request.method;
   try {
     if (path === 'ping') return J({ ok: true });

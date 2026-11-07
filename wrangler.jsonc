@@ -1,0 +1,9 @@
+{
+  "name": "survive3d",
+  "main": "src/worker.js",
+  "compatibility_date": "2025-10-01",
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
+  "kv_namespaces": [{ "binding": "SAVES", "id": "c16d6c737f8945b5a60c3fcab68cb44d" }],
+  "routes": [{ "pattern": "survive3d.jamietaylor.org", "custom_domain": true }],
+  "observability": { "enabled": true }
+}
