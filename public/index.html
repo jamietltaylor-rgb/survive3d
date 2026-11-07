@@ -253,7 +253,7 @@ async function syncFromServer(){
 function acctHTML(){
   if(ACC.user)return `👤 Signed in as <b>${esc(ACC.user)}</b>. Your progress saves to your account automatically.${ACC.online===false?' <span class="amber">(Can\'t reach the server right now, so it\'s saving on this device until it can.)</span>':''} <button class="mini" onclick="logout()">Log out</button>`;
   if(ACC.online===false)return `<span class="dim">Playing as a guest. Progress saves on this device only.<br>(Log in to save online when you play on the website.)</span>`;
-  return `<span class="dim">Playing as a guest. Progress only saves on this device.</span><br><button class="mini" onclick="authDlg('login')">Log in</button> <button class="mini" onclick="authDlg('signup')">Create account</button>`;
+  return `<div style="display:inline-block;border:1px solid #7a5c24;background:#1d1810;border-radius:8px;padding:14px 22px;margin-top:6px"><div style="font-size:16px;margin-bottom:8px">👤 <b>Save your progress online</b></div><button class="btn amber" onclick="authDlg('login')">🔑 Log in</button><button class="btn amber" onclick="authDlg('signup')">✨ Create account</button><div class="dim small" style="margin-top:6px">Playing as a guest right now. Progress only saves on this device.</div></div>`;
 }
 function authDlg(kind){
   const L=kind==='login';
@@ -276,8 +276,9 @@ async function doAuth(kind){
     const j=await api(kind,{username:u,password:p});
     ACC.user=j.user;ACC.token=j.token;ACC.online=true;
     try{localStorage.setItem('qo3d_acc',JSON.stringify({user:ACC.user,token:ACC.token}))}catch(e){}
-    await syncFromServer().catch(()=>{});
-    closeDlg();titleScreen();
+    const inGame=!!(G&&!G.over&&$('#log'));
+    if(inGame){try{localStorage.setItem(localKey(),JSON.stringify(snapshot()))}catch(e){};await api('save',snapshot(),'PUT').catch(()=>{})}else await syncFromServer().catch(()=>{});
+    closeDlg();if(inGame){ACC.online=true;dayScreen()}else titleScreen();
   }catch(e){er.textContent=e.message;b.disabled=false;b.textContent=kind==='login'?'Log in':'Create account'}
 }
 function logout(){if(ACC.token)api('logout',{}).catch(()=>{});sessionLost();titleScreen()}
@@ -340,6 +341,7 @@ function dayScreen(){
     ${G.sewer?`<button class="btn red" onclick="sewerAsk()">🌊 Escape through the sewers</button>`:''}
     <button class="btn amber" onclick="endDay()">🌙 End the day</button> <button class="btn" onclick="settingsDlg()">⚙️ Settings</button></div>
     ${G.acted?'<p class="dim small">You\'ve used your main action today. You can still dig if you have energy, or end the day.</p>':''}
+    ${!ACC.user&&ACC.online?`<p style="margin-top:16px"><button class="btn amber" onclick="authDlg('signup')">👤 Create an account to save online</button> <button class="btn" onclick="authDlg('login')">🔑 Log in</button></p>`:''}
     <p class="dim small" style="margin-top:20px">Strange files found: ${G.files}/3 · Buildings linked by tunnel: ${Object.values(G.locs).filter(l=>l.tunnel).length}/6</p></div>`;
   show(h);
   const lg=$('#log');if(lg)lg.scrollTop=lg.scrollHeight;
