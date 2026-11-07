@@ -299,7 +299,7 @@ function titleScreen(){
   <p><b>Moving (3D, first person):</b> <kbd>W</kbd>/<kbd>S</kbd> move, <kbd>A</kbd>/<kbd>D</kbd> turn (no mouse needed), or click the screen to look with the <kbd>mouse</kbd> (then A/D step sideways) · hold <kbd>Shift</kbd> to sneak · hold <kbd>Space</kbd> to sprint · <kbd>E</kbd> search / hide / talk / dig · <kbd>M</kbd> mute.</p>
   <p><b>Outside:</b> your torch only lights what's in front of you. The <b>radar</b> at the top of the screen shows the creature as a red blip each time the sweep passes it. Every sound you make spreads across the floor as a ring. If it reaches the creature, it comes. Hide in wardrobes and cars.</p>
   <p><b>Not everyone is who they seem.</b> Sometimes the creature pretends to be a survivor calling for help. Talk to them and look at them closely. If something's wrong, shine your torch in their eyes (<kbd>F</kbd>) and it will flee for a while. A torch flash in the creature's eyes also scares it off briefly.</p>
-  <p><b>Tunnels:</b> climb down into your basement and dig through the earth yourself. Face a wall and press <kbd>E</kbd> to dig. Weak soil collapses, so brace sections with <kbd>1</kbd> planks, <kbd>2</kbd> metal or <kbd>3</kbd> scaffold poles. Break into other buildings' basements to sneak in from below.</p>
+  <p><b>Tunnels:</b> climb down into your basement and dig through the earth yourself. Face a wall and press <kbd>E</kbd> to dig. Put up lights with <kbd>L</kbd> and upgrade them (candle → lantern → bulb → floodlight). Brighter tunnels are faster to dig. Weak soil collapses, so brace sections with <kbd>1</kbd> planks, <kbd>2</kbd> metal or <kbd>3</kbd> scaffold poles. Each support also strengthens the sections next to it. Break into other buildings' basements to sneak in from below.</p>
   <p><b>People:</b> you'll find survivors who can help you, but every one is another mouth to feed. Your choices decide which of the 11 endings you get.</p>
   <p class="small">Needs a computer with a keyboard. A mouse is optional. Best with headphones, in the dark. Your game saves automatically every day.</p></div></div>`);
   if(ACC.online===null)checkOnline().then(async on=>{if(on&&ACC.token){try{await syncFromServer()}catch(e){if(e.status===401)sessionLost()}}if($('#acct'))titleScreen()});
@@ -390,8 +390,8 @@ function endDay(){
   // tunnel decay
   let col=0;
   for(const c of G.tunnel){if(!c.dug||c.soil==='building')continue;
-    let d=SOIL[c.soil].decay*(c.sup?SUPS[c.sup].mult:1);if(has('tom'))d=Math.max(0,d-5);
-    c.stab-=d;if(c.stab<=0){c.dug=false;c.sup=null;c.stab=0;col++}}
+    let d=SOIL[c.soil].decay*(c.sup?SUPS[c.sup].mult:1);d*=nearSupportMult(c);if(has('tom'))d=Math.max(0,d-5);
+    c.stab-=d;if(c.stab<=0){c.dug=false;c.sup=null;c.stab=0;c.light=0;col++}}
   if(col)lines.push(`💥 You heard a deep rumble. ${col} section${col>1?'s':''} of tunnel collapsed.`);
   else if(has('tom')&&G.tunnel.some(c=>c.dug&&c.soil!=='building'))lines.push('🔨 Tom shored up the tunnels.');
   // night attack
@@ -479,7 +479,7 @@ function digDo(c){
   let msg=c.b?(c.b==='sewer'?'🌊 You broke through into the old storm sewers! A way out of the city...':`${LOCS[c.b].ic} You broke into the basement of the ${LOCS[c.b].name}! You can climb up into it from here.`):`Dug through ${SOIL[c.soil].n.toLowerCase()}.`;
   let cls=c.b?'green':'',caved=null,dead=false;
   for(const n of nbrs(c)){if(n.dug&&!n.b&&n.stab<25&&Math.random()<.4){
-    n.dug=false;n.sup=null;n.stab=0;caved=n;const y=you();y.hp-=25;
+    n.dug=false;n.sup=null;n.stab=0;n.light=0;caved=n;const y=you();y.hp-=25;
     msg='💥 CAVE-IN! A weak section collapsed on top of you (-25 HP).';cls='red';
     if(y.hp<=0){addLog('💥 The tunnel caved in.');dead=true}break}}
   updateTunnelLinks();
@@ -491,7 +491,27 @@ function braceCheck(c,mat){
   if(G.inv[mat]<=0)return `You don't have any ${SUPS[mat].n.toLowerCase()}.`;
   return null;
 }
-function braceDo(c,mat){G.inv[mat]--;c.sup=mat;c.stab=Math.min(100,c.stab+SUPS[mat].add);return `Braced with ${SUPS[mat].n.toLowerCase()}. Stability ${Math.round(c.stab)}%.`}
+const SPREAD={planks:{add:10,red:.15},metal:{add:15,red:.25},poles:{add:25,red:.35}};
+function nearSupportMult(c){let r=0;for(const n of nbrs(c))if(n.dug&&n.sup)r+=SPREAD[n.sup].red;return Math.max(.3,1-r)}
+function braceDo(c,mat){
+  G.inv[mat]--;c.sup=mat;c.stab=Math.min(100,c.stab+SUPS[mat].add);
+  let k=0;for(const n of nbrs(c))if(n.dug&&!n.b){n.stab=Math.min(100,n.stab+SPREAD[mat].add);k++}
+  return `Braced with ${SUPS[mat].n.toLowerCase()}. Stability ${Math.round(c.stab)}%.${k?` ${k} nearby section${k>1?'s':''} +${SPREAD[mat].add}% too.`:''}`;
+}
+const LIGHTS=[null,
+  {n:'Candle',ic:'🕯️',cost:{planks:1},col:0xffa040,int:1.1,dist:6,dig:1},
+  {n:'Oil lantern',ic:'🏮',cost:{metal:1},col:0xffb860,int:2.2,dist:9,dig:.85},
+  {n:'Electric bulb',ic:'💡',cost:{metal:1,poles:1},col:0xfff0d8,int:3.6,dist:12,dig:.7},
+  {n:'Floodlight',ic:'🔆',cost:{metal:2},col:0xffffff,int:6,dist:16,dig:.55}];
+const costTxt=c=>Object.entries(c).map(([k,v])=>`${v} ${ITEMS[k]}`).join(' + ');
+function lightCheck(c){
+  if(!c||!c.dug)return 'You can only put a light in a dug tunnel section.';
+  const lv=c.light||0;if(lv>=4)return 'This is already a floodlight. It can\'t get any brighter!';
+  const L=LIGHTS[lv+1];for(const k in L.cost)if(G.inv[k]<L.cost[k])return `You need ${costTxt(L.cost)} for ${lv?'the upgrade to ':'a '}${L.n.toLowerCase()}.`;
+  return null;
+}
+function lightDo(c){const lv=(c.light||0)+1,L=LIGHTS[lv];for(const k in L.cost)G.inv[k]-=L.cost[k];c.light=lv;return lv===1?'🕯️ You placed a candle. Press L again to upgrade it.':`${L.ic} Upgraded to ${L.n.toLowerCase()}!`}
+function digLight(c){let lv=c&&c.light||0;if(c)for(const n of nbrs(c))if(n.dug)lv=Math.max(lv,n.light||0);return lv}
 
 /* ---------- tunnels (3D first-person) ---------- */
 const TT=3,TWH=2.7;
@@ -553,12 +573,13 @@ function buildTunnel3D(){
   const bg=new THREE.BoxGeometry(TT,TWH,TT),m4=new THREE.Matrix4();
   for(const k in blocks){const im=new THREE.InstancedMesh(bg,M[k],blocks[k].length);blocks[k].forEach(([x,y],i)=>{m4.makeTranslation((x+.5)*TT,TWH/2,(y+.5)*TT);im.setMatrixAt(i,m4)});sc.add(im)}
   const pg=new THREE.PlaneGeometry(TT,TT);
-  TU.dust=[];
+  TU.dust=[];TU.lamps=[];
   for(const c of G.tunnel){
     if(!c.dug)continue;const X=(c.x+.5)*TT,Z=(c.y+.5)*TT;
     const f=new THREE.Mesh(pg,c.b?M.concrete:M.floor);f.rotation.x=-Math.PI/2;f.position.set(X,0,Z);sc.add(f);
     const ce=new THREE.Mesh(pg,c.b?M.concrete:M[c.soil]);ce.rotation.x=Math.PI/2;ce.position.set(X,TWH,Z);sc.add(ce);
     if(c.sup)addSupport(sc,c,X,Z);
+    if(c.light)addFixture(sc,c,X,Z);
     if(c.b)addRoom(sc,c,X,Z);
     if(!c.b&&c.stab<30){
       const n=40,pos=new Float32Array(n*3);for(let i=0;i<n;i++){pos[i*3]=X+rnd(-1.3,1.3);pos[i*3+1]=Math.random()*TWH;pos[i*3+2]=Z+rnd(-1.3,1.3)}
@@ -567,8 +588,23 @@ function buildTunnel3D(){
       const crack=new THREE.Mesh(new THREE.PlaneGeometry(TT*.9,TT*.9),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.35,depthWrite:false}));crack.rotation.x=Math.PI/2;crack.position.set(X,TWH-.01,Z);sc.add(crack);
     }
   }
+  R3.tpool=[];for(let i=0;i<6;i++){const pl=new THREE.PointLight(0xffffff,0,10,1.5);sc.add(pl);R3.tpool.push(pl)}
   const hl=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(TT*1.01,TWH*1.01,TT*1.01)),new THREE.LineBasicMaterial({color:0xd9a441,fog:false}));
   hl.visible=false;sc.add(hl);R3.hl=hl;
+}
+function addFixture(sc,c,X,Z){
+  const lv=c.light,L=LIGHTS[lv],o=TT/2-.3;
+  const glow=new THREE.MeshBasicMaterial({color:L.col}),dark=new THREE.MeshStandardMaterial({color:0x2a2a2a,metalness:.6,roughness:.5});
+  const add=(geo,m,x,y,z)=>{const b=new THREE.Mesh(geo,m);b.position.set(x,y,z);sc.add(b);return b};
+  let ly=TWH-.55,flame=null;
+  if(lv===1){add(new THREE.CylinderGeometry(.045,.05,.2,10),new THREE.MeshStandardMaterial({color:0xeeeadf}),X+o,.1,Z+o);
+    flame=add(new THREE.SphereGeometry(.035,8,6),glow,X+o,.24,Z+o);flame.scale.y=1.8;ly=.5}
+  else if(lv===2){add(new THREE.CylinderGeometry(.01,.01,.35,4),dark,X,TWH-.18,Z);add(new THREE.BoxGeometry(.2,.04,.2),dark,X,TWH-.37,Z);
+    add(new THREE.BoxGeometry(.16,.24,.16),new THREE.MeshBasicMaterial({color:L.col,transparent:true,opacity:.85}),X,TWH-.52,Z);add(new THREE.BoxGeometry(.2,.04,.2),dark,X,TWH-.66,Z)}
+  else if(lv===3){add(new THREE.CylinderGeometry(.008,.008,.4,4),dark,X,TWH-.2,Z);add(new THREE.CylinderGeometry(.03,.03,.06,8),dark,X,TWH-.42,Z);add(new THREE.SphereGeometry(.07,12,10),glow,X,TWH-.5,Z)}
+  else{add(new THREE.BoxGeometry(.08,.3,.08),dark,X,TWH-.15,Z);const h=add(new THREE.BoxGeometry(.42,.26,.2),dark,X,TWH-.42,Z);
+    add(new THREE.PlaneGeometry(.36,.2),glow,X,TWH-.42,Z-.105).rotation.y=Math.PI;add(new THREE.PlaneGeometry(.36,.2),glow,X,TWH-.42,Z+.105)}
+  TU.lamps.push({x:X,z:Z,y:ly,lv,flame});
 }
 function addSupport(sc,c,X,Z){
   const o=TT/2-.14,h=TWH;
@@ -604,7 +640,7 @@ function addRoom(sc,c,X,Z){
   box(.8,.6,.6,wood,X+TT/2-.6,.3,Z+TT/2-.5);box(.5,.45,.5,wood,X+TT/2-.6,.82,Z+TT/2-.45);
   const home=c.b==='home';
   const s=textSprite(home?'🏠 Your shelter':`${LOCS[c.b].ic} ${LOCS[c.b].name}`,home?'#e8c88a':'#d9c8a8',.4);s.position.set(X,2.2,Z);sc.add(s);
-  const lamp=new THREE.Mesh(new THREE.BoxGeometry(.15,.22,.15),new THREE.MeshBasicMaterial({color:home?0xffc070:0x806040}));lamp.position.set(X+TT/2-.2,1.9,Z+TT/2-.2);sc.add(lamp);
+  const lamp=new THREE.Mesh(new THREE.BoxGeometry(.09,.13,.09),new THREE.MeshBasicMaterial({color:home?0xffc070:0x806040}));lamp.position.set(X+TT/2-.15,TWH-.3,Z+TT/2-.15);sc.add(lamp);
   const l=new THREE.PointLight(home?0xffb060:0xa07040,home?1.6:.8,7,1.5);l.position.set(X+TT/2-.45,1.9,Z+TT/2-.45);sc.add(l);
 }
 function tunLoop(now){
@@ -648,6 +684,10 @@ function tunRender(dt){
   R3.flash.intensity=4.5;R3.lantern.intensity=1.6;
   const t=tunFacing();
   if(t&&(!t.dug||t.oob)){R3.hl.visible=true;R3.hl.position.set((t.x+.5)*TT,TWH/2,(t.y+.5)*TT);R3.hl.material.color.set(digCheck(t)?0xd24b43:0xd9a441)}else R3.hl.visible=false;
+  const near=TU.lamps.map(l=>({l,d:Math.hypot(l.x-TU.px,l.z-TU.pz)})).sort((a,b)=>a.d-b.d);
+  R3.tpool.forEach((pl,i)=>{const e=near[i];if(!e){pl.intensity=0;return}const L=LIGHTS[e.l.lv];pl.position.set(e.l.x,e.l.y,e.l.z);pl.color.setHex(L.col);pl.distance=L.dist;
+    pl.intensity=L.int*(e.l.lv===1?.8+.25*Math.sin(TU.t*13+i)+.1*Math.sin(TU.t*29):e.l.lv===2?.95+.05*Math.sin(TU.t*5+i):1);
+    if(e.l.flame)e.l.flame.scale.y=1.6+.4*Math.sin(TU.t*17+i)});
   for(const d of TU.dust){const a=d.geometry.attributes.position;for(let i=0;i<a.count;i++){let yy=a.getY(i)-dt*(.5+(i%5)*.15);if(yy<0)yy=TWH-.05;a.setY(i,yy)}a.needsUpdate=true}
   R3.renderer.render(R3.scene,cam);
 }
@@ -666,7 +706,7 @@ function tunInteract(){
   if(TU.dig||TU.dlg||TU.paused)return;
   const t=tunFacing(),here=tunHere();
   if(t&&!t.dug){const e=t.oob?digCheck(t):digCheck(t);if(e){tunMsg(e,2.5,'red');tone(120,.15,'square',.03);return}
-    TU.dig={c:t,t:0,dur:.55+SOIL[t.soil].cost*.45*(G.tools.shovel?1:1.6),nt:0};return}
+    const lm=digLight(tunHere());TU.dig={c:t,t:0,dur:(.55+SOIL[t.soil].cost*.45*(G.tools.shovel?1:1.6))*(lm?LIGHTS[lm].dig:1),nt:0};return}
   if(!here||!here.b||!atLadder())return;
   if(here.b==='home')return tunLeave();
   if(here.b==='sewer'){TU.dlg=true;unlock();for(const k in keys)keys[k]=false;
@@ -674,6 +714,11 @@ function tunInteract(){
   if(G.acted){tunMsg('You\'ve already used your trip today.',2.5,'red');return}
   if(G.storm){tunMsg('The storm is too dangerous today.',2.5,'red');return}
   const id=here.b;stopTunnel();updateTunnelLinks();startScav(id);
+}
+function tunLight(){
+  if(!TU||TU.dig)return;const c=tunHere(),e=lightCheck(c);
+  if(e){tunMsg(e,2.8,'red');return}
+  tunMsg(lightDo(c),2.8,'green');tone(660,.15,'sine',.04,1.5);buildTunnel3D();saveProgress();
 }
 function tunLeave(){stopTunnel();dayScreen()}
 function tunBrace(mat){
@@ -685,20 +730,22 @@ function tunHud(){
   const W=innerWidth,H=innerHeight;cx.clearRect(0,0,W,H);
   cx.fillStyle='rgba(255,255,255,.6)';cx.beginPath();cx.arc(W/2,H/2,2.2,0,7);cx.fill();
   cx.textAlign='left';cx.textBaseline='top';
-  cx.fillStyle='rgba(0,0,0,.55)';cx.fillRect(10,10,300,104);
+  cx.fillStyle='rgba(0,0,0,.55)';cx.fillRect(10,10,330,128);
   cx.fillStyle='#dcd8cc';cx.font='16px Georgia';cx.fillText('🕳️ Tunnels',20,18);
   cx.font='14px Georgia';cx.fillStyle=G.energy>0?'#d9a441':'#d24b43';cx.fillText(`⚡ Energy ${G.energy}`,20,42);
   cx.fillStyle=G.dirt>=dirtMax()?'#d24b43':'#dcd8cc';cx.fillText(`🪣 Dirt ${G.dirt}/${dirtMax()}`,130,42);
   cx.fillStyle='#8a8676';cx.fillText((G.tools.shovel?'🪏 shovel ':'🥄 spoon ')+(G.tools.pickaxe?'⛏️ pickaxe':'· no pickaxe'),20,64);
   const here=tunHere();
   if(here&&here.dug&&!here.b){const st=Math.round(here.stab);cx.fillStyle=st<25?'#d24b43':st<55?'#d9a441':'#6fae5a';
-    cx.fillText(`This section: ${st}% stable${here.sup?' · '+SUPS[here.sup].ic:''}${st<25?' · DANGER':''}`,20,88)}
+    cx.fillText(`This section: ${st}% stable${here.sup?' · '+SUPS[here.sup].ic:''}${st<25?' · DANGER':''}`,20,88);
+    if(nearSupportMult(here)<1){cx.fillStyle='#8fb8d8';cx.fillText('🛡️ Helped by nearby supports',20,110)}}
   else if(here&&here.b){cx.fillStyle='#8a8676';cx.fillText(here.b==='home'?'Your basement':here.b==='sewer'?'Storm sewer':LOCS[here.b].name+' basement',20,88)}
   // minimap
   const cell=Math.max(6,Math.min(11,(W*.26)/TW)),mw=cell*TW,mh=cell*TH,mx0=W-mw-14,my0=14;
   cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(mx0-6,my0-6,mw+12,mh+12);
   for(const c of G.tunnel){cx.fillStyle=tileColor(c);cx.globalAlpha=c.dug?1:.55;cx.fillRect(mx0+c.x*cell,my0+c.y*cell,cell-1,cell-1)}
   cx.globalAlpha=1;cx.font=`${Math.floor(cell)}px serif`;cx.textAlign='center';cx.textBaseline='middle';
+  for(const c of G.tunnel)if(c.dug&&c.light){cx.fillStyle='#ffd870';cx.beginPath();cx.arc(mx0+(c.x+.5)*cell,my0+(c.y+.5)*cell,Math.max(1.5,cell*.18),0,7);cx.fill()}
   for(const c of G.tunnel)if(c.b)cx.fillText(c.b==='home'?'🏠':c.b==='sewer'?'🌊':LOCS[c.b].ic,mx0+(c.x+.5)*cell,my0+(c.y+.5)*cell);
   const ppx=mx0+TU.px/TT*cell,ppy=my0+TU.pz/TT*cell;
   cx.fillStyle='#fff';cx.beginPath();cx.arc(ppx,ppy,cell*.32,0,7);cx.fill();
@@ -708,12 +755,14 @@ function tunHud(){
   // brace bar
   const br=`[1] 🪵 Planks ×${G.inv.planks}    [2] 🔩 Metal ×${G.inv.metal}    [3] 🏗️ Poles ×${G.inv.poles}`;
   cx.textAlign='center';cx.textBaseline='top';cx.font='14px Georgia';const bw=cx.measureText(br).width+30;
+  if(here&&here.dug){const lv=here.light||0,nx=LIGHTS[lv+1];const lt=nx?`[L] ${lv?`Upgrade ${LIGHTS[lv].ic} → ${nx.ic} ${nx.n}`:`${nx.ic} Place a candle`} (${costTxt(nx.cost)})`:`${LIGHTS[4].ic} Floodlight (max)`;
+    cx.font='14px Georgia';const lw=cx.measureText(lt).width+30;cx.fillStyle='rgba(0,0,0,.55)';cx.fillRect(W/2-lw/2,H-156,lw,28);cx.fillStyle=nx&&!lightCheck(here)?'#ffd870':'#8a8676';cx.fillText(lt,W/2,H-150)}
   cx.fillStyle='rgba(0,0,0,.55)';cx.fillRect(W/2-bw/2,H-122,bw,28);cx.fillStyle=here&&here.dug&&!here.b?'#dcd8cc':'#6d6a60';cx.fillText('Brace this section:  '+br,W/2,H-116);
   const pr=tunPrompt();
   if(pr){cx.font='16px Georgia';const w=cx.measureText(pr).width+30;cx.fillStyle='rgba(0,0,0,.65)';cx.fillRect(W/2-w/2,H-84,w,34);cx.fillStyle=pr[0]==='✖'?'#d24b43':'#d9a441';cx.fillText(pr,W/2,H-75)}
   if(TU.msgT>0){cx.font='18px Georgia';const c=TU.msgc==='red'?'210,75,67':TU.msgc==='green'?'111,174,90':'230,225,210';cx.fillStyle=`rgba(${c},${Math.min(1,TU.msgT)})`;cx.fillText(TU.msg,W/2,H*.2)}
   cx.textAlign='left';cx.fillStyle='rgba(140,135,120,.75)';cx.font='12px Georgia';
-  cx.fillText((locked()?'Mouse look · WASD move':'W/S move · A/D turn · click for mouse')+' · E dig / use · 1-3 brace · Q back to shelter · M mute',12,H-22);
+  cx.fillText((locked()?'Mouse look · WASD move':'W/S move · A/D turn · click for mouse')+' · E dig / use · 1-3 brace · L light · Q back to shelter · M mute',12,H-22);
   if(TU.paused){cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(0,0,W,H);cx.fillStyle='#fff';cx.textAlign='center';cx.font='40px Georgia';cx.fillText('PAUSED',W/2,H/2-30);cx.font='16px Georgia';cx.fillStyle='#8a8676';cx.fillText('click to continue',W/2,H/2+24)}
 }
 function tunnelScreen(){startTunnel3D()}
@@ -772,6 +821,7 @@ addEventListener('keydown',e=>{
   if(TU&&TU.running){if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
     if(e.code==='KeyE'&&!e.repeat)tunInteract();
     if(['Digit1','Digit2','Digit3'].includes(e.code)&&!e.repeat)tunBrace(['planks','metal','poles'][+e.code.slice(5)-1]);
+    if(e.code==='KeyL'&&!e.repeat)tunLight();
     if(e.code==='KeyQ'&&!e.repeat&&!TU.dlg)tunLeave();
     if(e.code==='KeyP'&&!e.repeat&&!TU.dlg){TU.paused=!TU.paused;if(TU.paused)unlock()}
     if(e.code==='KeyM'&&!e.repeat){muted=!muted;if(muted)stopDrone();else startDrone()}
