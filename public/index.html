@@ -298,6 +298,7 @@ function titleScreen(){
   <p><b>Each day</b> you choose: go out scavenging, dig tunnels, or rest. At night everyone needs food and water.</p>
   <p><b>Moving (3D, first person):</b> <kbd>W</kbd>/<kbd>S</kbd> move, <kbd>A</kbd>/<kbd>D</kbd> turn (no mouse needed), or click the screen to look with the <kbd>mouse</kbd> (then A/D step sideways) · hold <kbd>Shift</kbd> to sneak · hold <kbd>Space</kbd> to sprint · <kbd>E</kbd> search / hide / talk / dig · <kbd>M</kbd> mute.</p>
   <p><b>Outside:</b> your torch only lights what's in front of you. The <b>radar</b> at the top of the screen shows the creature as a red blip each time the sweep passes it. Every sound you make spreads across the floor as a ring. If it reaches the creature, it comes. Hide in wardrobes and cars.</p>
+  <p><b>Not everyone is who they seem.</b> Sometimes the creature pretends to be a survivor calling for help. Talk to them and look at them closely. If something's wrong, shine your torch in their eyes (<kbd>F</kbd>) and it will flee for a while. A torch flash in the creature's eyes also scares it off briefly.</p>
   <p><b>Tunnels:</b> climb down into your basement and dig through the earth yourself. Face a wall and press <kbd>E</kbd> to dig. Weak soil collapses, so brace sections with <kbd>1</kbd> planks, <kbd>2</kbd> metal or <kbd>3</kbd> scaffold poles. Break into other buildings' basements to sneak in from below.</p>
   <p><b>People:</b> you'll find survivors who can help you, but every one is another mouth to feed. Your choices decide which of the 11 endings you get.</p>
   <p class="small">Needs a computer with a keyboard. A mouse is optional. Best with headphones, in the dark. Your game saves automatically every day.</p></div></div>`);
@@ -777,6 +778,7 @@ addEventListener('keydown',e=>{
     return}
   if(S&&S.running){if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
     if(e.code==='KeyE'&&!e.repeat)interact();
+    if(e.code==='KeyF'&&!e.repeat)torchFlash();
     if(e.code==='KeyP'&&!e.repeat&&!S.dlg){S.paused=!S.paused;if(S.paused)unlock()}}
   if(e.code==='KeyM'&&!e.repeat){muted=!muted;if(muted)stopDrone();else if(S&&S.running)startDrone()}
 });
@@ -820,9 +822,9 @@ function humanoid(col,scale=1){
   const g=new THREE.Group(),m=std({color:col}),skin=std({color:0xc9a184}),dark=std({color:0x2a2a33});
   const body=new THREE.Mesh(new THREE.CylinderGeometry(.22,.26,.75,10),m);body.position.y=1.15;g.add(body);
   const head=new THREE.Mesh(new THREE.SphereGeometry(.16,14,10),skin);head.position.y=1.7;g.add(head);
-  const hair=new THREE.Mesh(new THREE.SphereGeometry(.165,12,8,0,Math.PI*2,0,Math.PI/2),std({color:0x2b1d14}));hair.position.y=1.72;g.add(hair);
+  const hair=new THREE.Mesh(new THREE.SphereGeometry(.165,12,8,0,Math.PI*2,0,Math.PI/2),std({color:0x2b1d14}));hair.position.y=1.72;g.add(hair);g.userData={head,hair,arms:[]};
   for(const s of[-1,1]){const leg=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,.78,8),dark);leg.position.set(s*.11,.39,0);g.add(leg);
-    const arm=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.7,8),m);arm.position.set(s*.3,1.13,0);g.add(arm)}
+    const arm=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.7,8),m);arm.position.set(s*.3,1.13,0);g.add(arm);g.userData.arms.push(arm)}
   g.scale.setScalar(scale);return g;
 }
 function dogMesh(){
@@ -833,6 +835,72 @@ function dogMesh(){
   for(const [x,z] of[[-.11,-.28],[.11,-.28],[-.11,.28],[.11,.28]]){const l=new THREE.Mesh(new THREE.BoxGeometry(.08,.32,.08),m);l.position.set(x,.16,z);g.add(l)}
   const tl=new THREE.Mesh(new THREE.BoxGeometry(.06,.06,.3),m);tl.position.set(0,.6,.48);tl.rotation.x=-.6;g.add(tl);g.userData.tail=tl;
   return g;
+}
+/* ----- the creature in disguise ----- */
+const MIMIC_NAMES=['Ellie','Marcus','Grace','Danny','Rosa','Owen','Nina','Callum'];
+const MIMIC_INTROS=['"Please... please help me. I\'ve been hiding in here for days."','"Is someone there? Oh, thank god. Take me with you. Please."','"I heard you coming. I\'ve been waiting for someone just like you."','"Don\'t leave me here. Please. It\'s so dark."'];
+function mimicTells(name){return shuffle([
+  '"Help me. Help me. Help me." Every time, in exactly the same voice.',
+  `They know the name of your shelter: the ${LOCS[G.start].name.toLowerCase()}. You never told them.`,
+  `When you ask their name there's a long, long pause. "...${name}. My name is ${name}."`,
+  'They haven\'t blinked. Not once.',
+  'Their voice seems to come from just behind your ear, not from their mouth.',
+  '"How many of you are there?" they ask. A little too eagerly.',
+  'A second after you speak, they quietly repeat what you said. Word for word.'
+]).slice(0,1+(Math.random()<.5?1:0))}
+const RED_HERRINGS=['They\'re shaking so much their teeth chatter.','Their clothes are torn and caked in mud.','They flinch at every little sound.','They keep glancing at the door.'];
+function makeMimic(x,y){const name=pick(MIMIC_NAMES);return{x,y,id:'mimic',mimic:true,name,intro:pick(MIMIC_INTROS),tells:mimicTells(name),anoms:shuffle(['eyes','neck','arms','float','tall','twitch']).slice(0,2)}}
+function mimicMesh(m){
+  const tall=m.anoms.includes('tall');
+  const g=humanoid(pick([0x5a5a6a,0x6a4a4a,0x4a5a6a,0x5a6a4a]),tall?1.22:1),ud=g.userData;
+  if(m.anoms.includes('arms'))ud.arms.forEach(a=>{a.scale.y=1.9;a.position.y-=.32});
+  if(m.anoms.includes('neck')){ud.head.rotation.z=.8;ud.hair.rotation.z=.8;ud.head.position.x=.1;ud.hair.position.x=.12}
+  const eyeM=new THREE.MeshBasicMaterial({color:0xff2a1a,fog:false,transparent:true,opacity:m.anoms.includes('eyes')?.85:0});
+  ud.eyes=[];for(const sx of[-.06,.06]){const e=new THREE.Mesh(new THREE.SphereGeometry(.022,6,4),eyeM);e.position.set(ud.head.position.x+sx,1.72,-.145);g.add(e);ud.eyes.push(e)}
+  ud.eyeM=eyeM;ud.m=m;
+  const tag=textSprite('🧑','#fff',.45);tag.position.y=2.2;g.add(tag);
+  return g;
+}
+function pickFlee(c){let best=null,bd=-1;for(let k=0;k<40;k++){const q=randomFloor(),d=Math.hypot(q[0]-S.px,q[1]-S.py);if(d>bd){bd=d;best=q}}c.tx=best[0];c.ty=best[1]}
+function dropModel(which){if(which==='fol'&&R3.fol){R3.scene.remove(R3.fol);R3.fol=null}if(which==='surv'){if(R3.surv){R3.scene.remove(R3.surv);R3.surv=null}if(R3.help){R3.scene.remove(R3.help);R3.help=null}}}
+function revealMimic(src){
+  const c=S.cre,p=src==='follower'?S.follower:S.surv;
+  c.x=p.x;c.y=p.y;c.disguised=false;c.stun=20;c.state='flee';c.dormant=0;pickFlee(c);R3.creLast=null;
+  if(src==='follower'){S.follower=null;dropModel('fol')}else{S.surv=null;dropModel('surv')}
+  S.mimicFound=true;scream();S.flashT=.5;
+  showMsg('IT WAS THE CREATURE! It shrieks and flees from the light!',4);
+}
+function dropDisguise(){
+  const c=S.cre;if(!c.disguised)return;c.disguised=false;R3.creLast=null;
+  if(S.follower&&S.follower.mimic){S.follower=null;dropModel('fol')}else if(S.surv&&S.surv.mimic){S.surv=null;dropModel('surv')}
+  showMsg('The person you saw earlier... is gone.',3.5);
+}
+function mimicUpdate(dt){
+  const c=S.cre,f=S.follower;
+  if(f&&f.mimic){c.x=f.x;c.y=f.y;f.attackT-=dt;
+    if(f.attackT<2.2&&!f.warned){f.warned=true;showMsg(`⚠ ${f.name} has gone very quiet behind you...`,2.5);if(R3.fol&&R3.fol.userData.eyeM)R3.fol.userData.eyeM.opacity=1;tone(70,1.4,'sawtooth',.03,.6)}
+    if(f.attackT<=0)return mimicAttack()}
+  else if(S.surv&&S.surv.mimic){c.x=S.surv.x;c.y=S.surv.y}
+  if(S.hunt)dropDisguise();
+}
+function mimicAttack(){
+  const f=S.follower;S.follower=null;S.cre.disguised=false;dropModel('fol');
+  S.caughtText=`🌑 ${f.name} wasn't a person. It was the creature, wearing a face. It turned on you in the dark. You tore free and ran, but dropped everything (-45 HP).`;
+  caught();
+}
+function torchFlash(){
+  if(S.dlg||S.paused||S.hidden)return;
+  if(S.flashCd>0){showMsg('Your torch is still recharging...',1.2);return}
+  S.flashCd=9;S.flashT=.3;tone(1500,.07,'square',.025);tone(900,.12,'sine',.02);
+  const fx=-Math.sin(yaw),fz=-Math.cos(yaw);
+  const hit=(x,y,range)=>{const dx=x-S.px,dy=y-S.py,d=Math.hypot(dx,dy);if(d>range||d<1)return false;return(dx*fx+dy*fz)/d>Math.cos(.26)&&los(S.px,S.py,x,y)};
+  const c=S.cre;
+  if(S.follower&&S.follower.mimic&&hit(S.follower.x,S.follower.y,150))return revealMimic('follower');
+  if(S.surv&&S.surv.mimic&&hit(S.surv.x,S.surv.y,150))return revealMimic('surv');
+  if(S.surv&&!S.surv.mimic&&hit(S.surv.x,S.surv.y,150)){S.surv.annoyed=true;showMsg('"Argh! Get that out of my eyes! I\'m a PERSON!"',2.6);return}
+  if(S.follower&&!S.follower.mimic&&hit(S.follower.x,S.follower.y,150)){showMsg(`${S.follower.name}: "Hey! Watch where you point that!"`,2.2);return}
+  if(!c.disguised&&!(c.stun>0)&&c.dormant<=0&&hit(c.x,c.y,140)){c.stun=7;c.state='flee';pickFlee(c);showMsg('It recoils from the light and flees!',2.5);tone(400,.5,'sawtooth',.03,.4);return}
+  showMsg('The torch flares... nothing there.',1.2);
 }
 function npcMesh(id){
   let g;
@@ -934,7 +1002,7 @@ function build3D(){
   if(S.file){const f=new THREE.Mesh(new THREE.BoxGeometry(.42,.03,.56),new THREE.MeshStandardMaterial({color:0xf2ead2,emissive:0x8a8060,emissiveIntensity:.6}));f.position.set(S.file.x*U,.6,S.file.y*U);sc.add(f);R3.file=f}
   // survivor
   R3.surv=null;R3.help=null;R3.fol=null;
-  if(S.surv){const g=npcMesh(S.surv.id);g.position.set(S.surv.x*U,0,S.surv.y*U);g.rotation.y=Math.random()*6;sc.add(g);R3.surv=g;
+  if(S.surv){const g=S.surv.mimic?mimicMesh(S.surv):npcMesh(S.surv.id);g.position.set(S.surv.x*U,0,S.surv.y*U);g.rotation.y=Math.random()*6;sc.add(g);R3.surv=g;
     const hs=textSprite('...help...','#e6c88c',.4);hs.position.set(S.surv.x*U,2.6,S.surv.y*U);hs.material.opacity=0;sc.add(hs);R3.help=hs}
   // creature
   R3.cre=creatureMesh();sc.add(R3.cre);R3.creLast=null;
@@ -947,11 +1015,14 @@ function startScav(id){
   const dumped=Math.min(G.dirt,6);G.dirt-=dumped;
   S={id,L,tun,...mp,px:(mp.spawn[0]+.5)*T,py:(mp.spawn[1]+.5)*T,hidden:null,bag:[],cap:8+(has('dex')?4:0),
      time:150+(tun?60:0),hunt:false,rings:[],noiseT:0,search:null,follower:null,trail:[],trailT:0,msg:'',msgT:0,
-     paused:false,running:true,dlg:false,seenHide:false,beatT:0,helpT:0,cryT:rnd(10,20),t:0,dumped,bob:0,moving:false,flick:0};
+     paused:false,running:true,dlg:false,seenHide:false,flashCd:0,flashT:0,beatT:0,helpT:0,cryT:rnd(10,20),t:0,dumped,bob:0,moving:false,flick:0};
   let cxp,cyp;
   if(tun){cxp=1.5*T;cyp=1.5*T}
   else{let k=0;do{const r=pick(mp.rooms);cxp=(ri2(r[0],r[2])+.5)*T;cyp=(ri2(r[1],r[3])+.5)*T;k++}while((solid(mp.m[Math.floor(cyp/T)*MW+Math.floor(cxp/T)])||Math.hypot(cxp-S.px,cyp-S.py)<500)&&k<300)}
-  S.cre={x:cxp,y:cyp,state:'wander',tx:cxp,ty:cyp,field:null,tt:-1,distT:0,dormant:tun?20:4,wait:0,lostT:0,lastX:0,lastY:0,anim:0};
+  S.cre={x:cxp,y:cyp,state:'wander',tx:cxp,ty:cyp,field:null,tt:-1,distT:0,dormant:tun?20:4,wait:0,lostT:0,lastX:0,lastY:0,anim:0,stun:0,disguised:false};
+  if(!S.surv&&G.day>=2&&Math.random()<.4){
+    let q,k=0;do{const r=pick(mp.rooms);q=[ri2(r[0],r[2]),ri2(r[1],r[3])];k++}while((S.m[q[1]*MW+q[0]]!==1||Math.hypot(q[0]-mp.spawn[0],q[1]-mp.spawn[1])<8)&&k<400);
+    S.surv=makeMimic((q[0]+.5)*T,(q[1]+.5)*T);S.cre.disguised=true;S.cre.x=S.surv.x;S.cre.y=S.surv.y}
   yaw=tun?Math.random()*6.28:0;pitch=0;
   ui.style.display='none';cv.style.display='block';gl.style.display='block';
   build3D();resizeCv();
@@ -1021,14 +1092,33 @@ function takeFile(){
   tone(400,.4,'sine',.05,.7);
   openDlg(`<div class="ic">📄</div><p class="dim small">STRANGE FILE ${G.files}/3</p><p><i>${txt}</i></p><button class="btn" onclick="closeScavDlg()">Keep it</button>`);
 }
+function mimicTip(){G.mimicTip=(G.mimicTip||0)+1;return G.mimicTip<=3?'<p class="small dim">💡 The creature can pretend to be people. Look at them closely and listen to what they say. If something is wrong, shine your torch in their eyes.</p>':''}
+function torchBtn(){return `<button class="btn" onclick="survChoice('torch')">🔦 Shine your torch in their eyes</button>`}
 function meetSurvivor(){
+  if(S.surv.mimic){const m=S.surv,full=G.people.length>=ST().cap;
+    return openDlg(`<div class="ic">🧑</div><p><b>${m.name}</b> <span class="dim">(says they're a survivor)</span></p><p>${m.intro}</p>${m.tells.map(t=>`<p class="small"><i>${t}</i></p>`).join('')}
+    ${has('dog')?'<p class="small amber">🐕 Biscuit growls and backs away from them.</p>':''}${mimicTip()}
+    ${full?`<p class="red small">Your shelter is full (${ST().cap} people max).</p>`:`<button class="btn amber" onclick="survChoice('take')">Bring ${m.name} with you</button>`}
+    ${torchBtn()}<button class="btn" onclick="survChoice('leave')">Leave them</button>`)}
   const id=S.surv.id,sv=SURV[id],full=G.people.length>=ST().cap;
-  openDlg(`<div class="ic">${sv.ic}</div><p><b>${sv.name}</b> <span class="dim">(${sv.role})</span></p><p>${sv.meet}</p><p class="small dim">${sv.desc}</p>
+  if(S.surv.refused)return openDlg(`<div class="ic">${sv.ic}</div><p><b>${sv.name}</b> won't even look at you. "Stay away from me, torch-freak."</p><button class="btn" onclick="survChoice('leave')">Leave ${sv.name} behind</button>`);
+  if(S.surv.herring===undefined)S.surv.herring=Math.random()<.3?pick(RED_HERRINGS):'';
+  openDlg(`<div class="ic">${sv.ic}</div><p><b>${sv.name}</b> <span class="dim">(${sv.role})</span></p><p>${sv.meet}</p>${S.surv.herring?`<p class="small"><i>${S.surv.herring}</i></p>`:''}
+  ${has('dog')&&id!=='dog'?'<p class="small green">🐕 Biscuit wags his tail at them.</p>':''}${S.surv.checked?'':mimicTip()}<p class="small dim">${sv.desc}</p>
   ${full?`<p class="red small">Your shelter is full (${ST().cap} people max). You can't take anyone else.</p>`:`<p class="small amber">Another mouth to feed: they'll need food and water every night.</p>`}
-  ${full?'':`<button class="btn amber" onclick="survChoice(true)">Bring ${sv.name} with you</button>`}
-  <button class="btn" onclick="survChoice(false)">Leave ${sv.name} behind</button>`);
+  ${full?'':`<button class="btn amber" onclick="survChoice('take')">Bring ${sv.name} with you</button>`}
+  ${S.surv.checked||id==='dog'?'':torchBtn()}<button class="btn" onclick="survChoice('leave')">Leave ${sv.name} behind</button>`);
 }
-function survChoice(take){
+function survChoice(kind){
+  if(S.surv.mimic){closeScavDlg();const m=S.surv;
+    if(kind==='torch'){S.flashCd=9;return revealMimic('surv')}
+    if(kind==='take'){S.follower={id:'mimic',mimic:true,x:m.x,y:m.y,ic:'🧑',name:m.name,attackT:rnd(7,13)};R3.fol=R3.surv;R3.surv=null;if(R3.help){R3.scene.remove(R3.help);R3.help=null}S.surv=null;showMsg(`${m.name} is following you. Get back to the exit.`,3);return}
+    showMsg('You back away slowly. They watch you go. They don\'t blink.',3);return}
+  if(kind==='torch'){S.flashCd=9;S.flashT=.3;tone(1500,.07,'square',.025);S.surv.checked=true;
+    const sv=SURV[S.surv.id];
+    if(S.surv.annoyed||Math.random()<.4){S.surv.refused=true;return openDlg(`<div class="ic">${sv.ic}</div><p><b>${sv.name}</b> throws an arm over their eyes. "OW! What is WRONG with you?!"</p><p>Their eyes are normal. Just a person. A very angry person.</p><p>"I'm not going anywhere with you."</p><button class="btn" onclick="survChoice('leave')">Leave ${sv.name} behind</button>`)}
+    return openDlg(`<div class="ic">${sv.ic}</div><p><b>${sv.name}</b> squints into the light. Normal eyes. Just a person.</p><p>"...Fine. I get it. I'd have checked too."</p><button class="btn amber" onclick="survChoice('take')">Bring ${sv.name} with you</button><button class="btn" onclick="survChoice('leave')">Leave ${sv.name} behind</button>`)}
+  const take=kind==='take';
   closeScavDlg();const id=S.surv.id,sv=SURV[id];
   if(take){S.follower={id,x:S.surv.x,y:S.surv.y,ic:sv.ic,name:sv.name};R3.fol=R3.surv;showMsg(`${sv.name} is following you. Get back to the exit.`,3)}
   else{G.left++;if(R3.surv)R3.scene.remove(R3.surv);showMsg(`You walk away. You don't look back.`,3)}
@@ -1036,10 +1126,12 @@ function survChoice(take){
   S.surv=null;S.L.surv=null;
 }
 function leaveScav(){
+  if(S.follower&&S.follower.mimic)return mimicAttack();
   const got={};for(const it of S.bag){if(it==='shovel'){G.tools.shovel=true}else if(it==='pickaxe'){G.tools.pickaxe=true}else G.inv[it]++;got[it]=(got[it]||0)+1}
   const lst=Object.keys(got).map(k=>`${ITEMS[k]}${got[k]>1?' ×'+got[k]:''}`).join(' ');
   S.L.visits++;S.L.bonus=false;
   addLog(`🔦 You made it back from the ${LOCS[S.id].name.toLowerCase()}${lst?' with '+lst:' empty-handed'}.${S.dumped?` (Dumped ${S.dumped} dirt outside.)`:''}`);
+  if(S.mimicFound)addLog('🔦 You saw through the creature\'s disguise and drove it off with your torch.');
   if(S.follower){G.people.push(mkPerson(S.follower.id));G.rescued++;addLog(`${S.follower.ic} ${S.follower.name} joined your group.`)}
   if(got.shovel)addLog('🪏 A real shovel! Digging is much faster now.');
   if(got.pickaxe)addLog('⛏️ A pickaxe! You can dig through rock now.');
@@ -1047,6 +1139,7 @@ function leaveScav(){
   dayScreen();
 }
 function jumpscare(){
+  R3.cre.visible=true;
   const cam=R3.camera,fx=-Math.sin(yaw),fz=-Math.cos(yaw),g=R3.cre;
   g.position.set(cam.position.x+fx*1.25,-1.45,cam.position.z+fz*1.25);g.rotation.y=Math.atan2(fx,fz);
   g.userData.arms.forEach((a,i)=>{a.rotation.x=-1.3;a.rotation.z=(i?-1:1)*.5});
@@ -1057,7 +1150,7 @@ function jumpscare(){
 function caught(){
   if(!S.running)return;S.running=false;stopDrone();scream();unlock();if(SET.jump)jumpscare();else{cx.clearRect(0,0,innerWidth,innerHeight);cx.fillStyle='rgba(0,0,0,.9)';cx.fillRect(0,0,innerWidth,innerHeight)}
   const y=you();y.hp-=45;
-  let txt=`🌑 It caught you at the ${LOCS[S.id].name.toLowerCase()}. You tore free and ran, but dropped everything (-45 HP).`;
+  let txt=S.caughtText||`🌑 It caught you at the ${LOCS[S.id].name.toLowerCase()}. You tore free and ran, but dropped everything (-45 HP).`;
   if(S.follower){G.lost++;txt+=` ${S.follower.name} didn't make it out.`}
   addLog(txt);S.L.visits++;
   if(y.hp<=0){setTimeout(()=>finish('taken'),1600);return}
@@ -1071,7 +1164,7 @@ function scavLoop(now){
   requestAnimationFrame(scavLoop);
 }
 function updScav(dt){
-  S.t+=dt;S.time-=dt;S.msgT-=dt;
+  S.t+=dt;S.time-=dt;S.msgT-=dt;S.flashCd-=dt;S.flashT-=dt;
   if(S.time<=0&&!S.hunt){S.hunt=true;showMsg('⚠ It knows you\'re here. GET OUT.',4);scream();S.cre.dormant=0}
   const mouseOn=locked(),f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),s=mouseOn?(keys.KeyD?1:0)-(keys.KeyA?1:0):0;
   if(keys.ArrowLeft||(!mouseOn&&keys.KeyA))yaw+=2.4*dt;if(keys.ArrowRight||(!mouseOn&&keys.KeyD))yaw-=2.4*dt;
@@ -1099,7 +1192,9 @@ function updScav(dt){
   if(S.surv){S.helpT-=dt;if(S.helpT<=0){S.helpT=5;S.help={life:1.6};tone(330,.5,'sine',.015,.9)}}
   if(S.help)S.help.life-=dt;
   const c=S.cre,pd=Math.hypot(c.x-S.px,c.y-S.py);c.anim+=dt;
-  if(c.dormant>0)c.dormant-=dt;
+  if(c.disguised){mimicUpdate(dt);if(!S.running)return}
+  else if(c.stun>0){c.stun-=dt;creMove(c,c.tx,c.ty,175,dt);if(c.stun<=0){c.state='wander';[c.tx,c.ty]=randomFloor()}}
+  else if(c.dormant>0)c.dormant-=dt;
   else{
     const vis=(S.mode==='run'?230:S.mode==='sneak'?105:150);
     const sees=!S.hidden&&pd<vis&&los(c.x,c.y,S.px,S.py);
@@ -1117,7 +1212,7 @@ function updScav(dt){
     if(S.follower&&Math.hypot(c.x-S.follower.x,c.y-S.follower.y)<22){
       G.lost++;scream();addLog(`🕯️ ${S.follower.name} was taken in the dark.`);showMsg(`${S.follower.name} was taken!`,3);S.follower=null;if(R3.fol){R3.scene.remove(R3.fol);R3.fol=null}}
   }
-  if(pd<280&&c.dormant<=0){S.beatT-=dt;if(S.beatT<=0){S.beatT=.35+pd/280*.9;heartbeat()}}
+  if(pd<280&&c.dormant<=0&&!c.disguised&&!(c.stun>0)){S.beatT-=dt;if(S.beatT<=0){S.beatT=.35+pd/280*.9;heartbeat()}}
   for(const r of S.rings){r.life-=dt*1.4;r.r=r.R*(1-r.life);if(r.life<=0&&r.mesh){R3.scene.remove(r.mesh);r.mesh.material.dispose()}}
   S.rings=S.rings.filter(r=>r.life>0);
 }
@@ -1156,12 +1251,17 @@ function render3D(dt){
     ud.arms[0].rotation.x=-Math.sin(ud.phase)*amp*.7+Math.sin(c.anim*1.3)*.08;ud.arms[1].rotation.x=Math.sin(ud.phase)*amp*.7+Math.sin(c.anim*1.1)*.08;
     ud.arms[0].rotation.z=.12;ud.arms[1].rotation.z=-.12}
   R3.creLast=[nx,nz];
-  g.position.set(nx,Math.abs(Math.sin(ud.phase))*.06,nz);
+  g.position.set(nx,Math.abs(Math.sin(ud.phase))*.06,nz);g.visible=!c.disguised;
   ud.head.rotation.z=Math.sin(c.anim*1.7)*.25+(Math.random()<.01?rnd(-.6,.6):0);
   ud.head.rotation.x=c.state==='investigate'?.35:0;
   // npcs
   const t=S.t;
-  if(R3.surv){R3.surv.position.y=Math.sin(t*2)*.01}
+  const face=(m,x,y)=>{m.rotation.y=Math.atan2(-(S.px-x),-(S.py-y))};
+  if(R3.surv&&S.surv){face(R3.surv,S.surv.x,S.surv.y);R3.surv.position.y=Math.sin(t*2)*.01}
+  for(const [mdl,who] of [[R3.surv,S.surv],[R3.fol,S.follower]]){if(!mdl||!who||!who.mimic||!mdl.userData.m)continue;const an=mdl.userData.m.anoms,ud2=mdl.userData;
+    if(an.includes('float'))mdl.position.y=.2+Math.sin(t*1.4)*.05;
+    if(an.includes('twitch')&&Math.random()<.03){ud2.head.rotation.y=rnd(-1.2,1.2);ud2.hair.rotation.y=ud2.head.rotation.y}else if(an.includes('twitch')&&Math.random()<.05){ud2.head.rotation.y=0;ud2.hair.rotation.y=0}}
+  if(S.flashT>0)R3.flash.intensity=fi*6;
   if(R3.help)R3.help.material.opacity=S.help&&S.help.life>0?Math.min(1,S.help.life)*.85:0;
   if(R3.fol&&S.follower){R3.fol.position.set(S.follower.x*U,0,S.follower.y*U);const a=Math.atan2(-(S.px-S.follower.x),-(S.py-S.follower.y));R3.fol.rotation.y=a;
     if(R3.fol.userData.tail)R3.fol.userData.tail.rotation.y=Math.sin(t*12)*.6}
@@ -1184,11 +1284,12 @@ function hudScav(){
     if(!S.hidden.car){cx.fillStyle='rgba(10,6,3,.95)';for(let y=0;y<H;y+=44)cx.fillRect(0,y,W,30)}
     else{const v=cx.createRadialGradient(W/2,H/2,H*.18,W/2,H/2,H*.75);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(0,0,0,.95)');cx.fillStyle=v;cx.fillRect(0,0,W,H)}
   }
-  if(pd<280&&c.dormant<=0){const k=1-pd/280;const v=cx.createRadialGradient(W/2,H/2,Math.min(W,H)*.25,W/2,H/2,Math.max(W,H)*.7);v.addColorStop(0,'rgba(120,0,0,0)');v.addColorStop(1,`rgba(150,0,0,${k*.55})`);cx.fillStyle=v;cx.fillRect(0,0,W,H)}
+  if(S.flashT>0){cx.fillStyle=`rgba(255,250,225,${S.flashT*.5})`;cx.fillRect(0,0,W,H)}
+  if(pd<280&&c.dormant<=0&&!c.disguised&&!(c.stun>0)){const k=1-pd/280;const v=cx.createRadialGradient(W/2,H/2,Math.min(W,H)*.25,W/2,H/2,Math.max(W,H)*.7);v.addColorStop(0,'rgba(120,0,0,0)');v.addColorStop(1,`rgba(150,0,0,${k*.55})`);cx.fillStyle=v;cx.fillRect(0,0,W,H)}
   if(!S.hidden){cx.fillStyle='rgba(255,255,255,.6)';cx.beginPath();cx.arc(W/2,H/2,2.2,0,7);cx.fill()}
   // panel
   cx.textAlign='left';cx.textBaseline='top';
-  cx.fillStyle='rgba(0,0,0,.55)';cx.fillRect(10,10,290,102);
+  cx.fillStyle='rgba(0,0,0,.55)';cx.fillRect(10,10,290,124);
   cx.fillStyle='#dcd8cc';cx.font='16px Georgia';cx.fillText(LOCS[S.id].ic+' '+LOCS[S.id].name,20,18);
   const tm=Math.max(0,S.time),mm=Math.floor(tm/60),ss=String(Math.floor(tm%60)).padStart(2,'0');
   cx.fillStyle=S.hunt?'#d24b43':tm<30?'#d9a441':'#8a8676';cx.font='14px Georgia';cx.fillText(S.hunt?'⚠ IT IS HUNTING YOU':`Safe for ${mm}:${ss}`,20,40);
@@ -1197,6 +1298,7 @@ function hudScav(){
   const nl=S.hidden||!S.moving?0:S.mode==='run'?1:S.mode==='walk'?.4:.1;
   cx.fillStyle='#8a8676';cx.font='12px Georgia';cx.fillText('NOISE',20,86);cx.fillStyle='#2a2e37';cx.fillRect(70,88,210,8);
   cx.fillStyle=nl>.6?'#d24b43':nl>.2?'#d9a441':'#6fae5a';cx.fillRect(70,88,210*nl,8);
+  cx.fillStyle=S.flashCd>0?'#8a8676':'#f0e6b0';cx.font='12px Georgia';cx.fillText(S.flashCd>0?'🔦 TORCH FLASH recharging':'🔦 [F] TORCH FLASH ready',20,106);if(S.flashCd>0){cx.fillStyle='#2a2e37';cx.fillRect(200,108,80,6);cx.fillStyle='#d9a441';cx.fillRect(200,108,80*(1-S.flashCd/9),6)}
   // bag
   const cnt={};S.bag.forEach(k=>cnt[k]=(cnt[k]||0)+1);
   const bt=`Bag ${S.bag.length}/${S.cap}  `+Object.keys(cnt).map(k=>ITEMS[k]+cnt[k]).join(' ');
@@ -1218,11 +1320,13 @@ function hudScav(){
   cx.fillStyle=S.hatch?'#e0a040':'#50e080';cx.fillRect(eh.x-3.5,eh.y-3.5,7,7);
   if(S.follower){const f=pos(S.follower.x,S.follower.y);cx.fillStyle='#8fc8ff';cx.beginPath();cx.arc(f.x,f.y,2.5,0,7);cx.fill()}
   // creature blip: lights up when the sweep passes it, then fades
-  const cb=pos(c.x,c.y);let ba=cb.a%(Math.PI*2);if(ba<0)ba+=Math.PI*2;
+  const cb=pos(c.x,c.y),jam=c.disguised&&cb.d<12/U;
+  if(jam){for(let k=0;k<40;k++){cx.fillStyle=`rgba(150,255,190,${Math.random()*.5})`;cx.fillRect(rcx+rnd(-RR,RR),rcy+rnd(-RR,RR),rnd(1,4),1.5)}}
+  let ba=cb.a%(Math.PI*2);if(ba<0)ba+=Math.PI*2;
   let age=(sw-ba)%(Math.PI*2);if(age<0)age+=Math.PI*2;age/=SW;
-  if(S.blipAge!==undefined&&age<S.blipAge&&!cb.out&&cb.d<range*.6)tone(cb.d<range*.3?1100:880,.06,'sine',.025);
+  if(!c.disguised&&S.blipAge!==undefined&&age<S.blipAge&&!cb.out&&cb.d<range*.6)tone(cb.d<range*.3?1100:880,.06,'sine',.025);
   S.blipAge=age;
-  const al=Math.max(0,1-age/2.4)*(cb.out?.45:1);
+  const al=c.disguised?0:Math.max(0,1-age/2.4)*(cb.out?.45:1);
   if(al>0){cx.fillStyle=`rgba(255,50,40,${al})`;cx.shadowColor='#ff3020';cx.shadowBlur=10*al;cx.beginPath();cx.arc(cb.x,cb.y,cb.out?3:4.5,0,7);cx.fill();cx.shadowBlur=0}
   cx.restore();
   // you
@@ -1230,8 +1334,8 @@ function hudScav(){
   cx.strokeStyle='rgba(80,220,130,.6)';cx.lineWidth=1.5;cx.beginPath();cx.arc(rcx,rcy,RR,0,7);cx.stroke();
   cx.textAlign='center';cx.textBaseline='top';cx.font='12px Georgia';
   const cd=Math.round(cb.d*U);
-  cx.fillStyle=cb.out?'#6fae5a':cd<12?'#ff5040':'#d9a441';
-  cx.fillText(cb.out?`RADAR ${rangeM}m · nothing close`:`⚠ IT IS ${cd}m AWAY`,rcx,rcy+RR+5);
+  cx.fillStyle=jam?'#9fe8b8':(cb.out||c.disguised)?'#6fae5a':cd<12?'#ff5040':'#d9a441';
+  cx.fillText(jam?'RADAR · interference...':(cb.out||c.disguised)?`RADAR ${rangeM}m · nothing close`:`⚠ IT IS ${cd}m AWAY`,rcx,rcy+RR+5);
   cx.fillStyle='#8a8676';cx.fillText(`${S.hatch?'TUNNEL':'HOME'} ${Math.round(eh.d*U)}m${has('dog')?' · 🐕 long range':''}`,rcx,rcy+RR+20);
   // search bar
   if(S.search){const s=S.search;cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(W/2-80,H/2+30,160,10);cx.fillStyle='#d9a441';cx.fillRect(W/2-78,H/2+32,156*s.t/s.dur,6)}
@@ -1239,7 +1343,7 @@ function hudScav(){
   const pr=promptText();
   if(pr){cx.textAlign='center';cx.font='16px Georgia';const w=cx.measureText(pr).width+30;cx.fillStyle='rgba(0,0,0,.65)';cx.fillRect(W/2-w/2,H-80,w,34);cx.fillStyle='#d9a441';cx.textBaseline='top';cx.fillText(pr,W/2,H-71)}
   if(S.msgT>0){cx.textAlign='center';cx.textBaseline='top';cx.font='18px Georgia';cx.fillStyle=`rgba(230,225,210,${Math.min(1,S.msgT)})`;cx.fillText(S.msg,W/2,H*.2)}
-  cx.textAlign='left';cx.textBaseline='top';cx.fillStyle='rgba(140,135,120,.75)';cx.font='12px Georgia';cx.fillText((locked()?'Mouse look · WASD move':'W/S move · A/D turn')+' · Shift sneak · Space sprint · E interact · P pause · M mute',12,H-22);
+  cx.textAlign='left';cx.textBaseline='top';cx.fillStyle='rgba(140,135,120,.75)';cx.font='12px Georgia';cx.fillText((locked()?'Mouse look · WASD move':'W/S move · A/D turn')+' · Shift sneak · Space sprint · E interact · F torch flash · P pause · M mute',12,H-22);
   if(!locked()&&!S.paused&&!S.dlg&&S.t<8){cx.textAlign='center';cx.font='16px Georgia';cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(W/2-230,H/2-64,460,34);cx.fillStyle='#fff';cx.fillText('🖱️ Click to use the mouse  ·  or turn with A / D',W/2,H/2-56)}
   if(S.paused){cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(0,0,W,H);cx.fillStyle='#fff';cx.textAlign='center';cx.font='40px Georgia';cx.fillText('PAUSED',W/2,H/2-30);cx.font='16px Georgia';cx.fillStyle='#8a8676';cx.fillText('click to continue',W/2,H/2+24)}
 }
