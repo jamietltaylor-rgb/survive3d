@@ -129,7 +129,7 @@ function settingsDlg(){
   ${ck('loudGlass','Loud glass smash','The big crash when you break open a glass case. Off = a soft tinkle instead. (The creature still hears it either way!)')}
   ${ck('screams','Creature screams','The shriek when it spots you or catches you. Off = a quiet low tone.')}
   ${ck('jump','Jump scare','Its face filling the screen when it catches you. Off = the screen just goes dark.')}
-  ${ck('voice','Radio & TV voices','Read out loud what the radio and TV say.')}
+  ${ck('voice','Radio & TV voices','Read out loud what the radio and TV say.')}<button class="btn" style="margin:-4px 0 6px 24px" onclick="voicesDlg('settings')">🎭 Change the voices</button>
   ${ck('heart','Heartbeat','The thumping sound when the creature is close.')}
   <div style="margin-top:14px"><button class="btn amber" onclick="Object.assign(SET,{loudGlass:false,screams:false,jump:false,heart:false});saveSet();settingsDlg()">😌 Make it less scary</button><button class="btn" onclick="Object.assign(SET,{loudGlass:true,screams:true,jump:true,heart:true});saveSet();settingsDlg()">😱 Full scary</button></div>
   <button class="btn" style="margin-top:6px" onclick="closeDlg()">Done</button>`);
@@ -207,8 +207,8 @@ function checkUnlock(){
   G.batch=G.batch||0;if(G.batch>=BATCHES.length)return;
   const avail=Object.keys(G.locs).filter(k=>!G.locs[k].hidden);
   if(!avail.every(k=>G.locs[k].visits>=1))return;
-  const b=BATCHES[G.batch++];for(const id of b)G.locs[id]={visits:0,surv:null,file:false,tunnel:false,bonus:false,far:true};
-  addLog(`📻 "...if anyone can hear this: the ${b.map(id=>LOCS[id].name).join(' and the ')}, across the city, haven't been touched. There could still be supplies..." (New places to search!)`);
+  const b=BATCHES[G.batch++];for(const id of b)G.locs[id]={visits:0,surv:null,file:false,tunnel:false,bonus:false,far:true};placeFar();
+  addLog(`📻 "...if anyone can hear this: the ${b.map(id=>LOCS[id].name).join(' and the ')}, across the city, haven't been touched. There could still be supplies..." (New places to search! You can also dig tunnels to them.)`);
 }
 const ENDINGS={
   everyone:{t:'Everyone Made It',ic:'🚁'},rescued:{t:'Rescue',ic:'🚁'},hard:{t:'The Hard Choice',ic:'💔'},alone:{t:'Alone',ic:'🥀'},
@@ -233,7 +233,7 @@ function newGame(startId){
   const S0=STARTS[startId];
   G={day:1,max:20,start:startId,inv:{...S0.inv},tools:{shovel:!!S0.tools,pickaxe:!!S0.tools},people:[mkPerson('you')],
      energy:0,dirt:0,acted:false,log:[],batch:0,logSeen:0,trap:{chains:false,battery:false,speaker:false,flood:false,cage:false,lure:false,light:false},files:0,locs:{},rescued:0,deaths:[],lost:0,left:0,dexBetrayed:false,strangerN:0,
-     storm:false,sewer:false,radio:0,tmsg:''};
+     storm:false,sewer:false,radio:0,tmsg:'',barr:{n:{},carry:0}};
   for(const id in LOCS){if(id===startId||LOCS[id].far||LOCS[id].hidden)continue;G.locs[id]={visits:0,surv:LOCS[id].surv||null,file:!!LOCS[id].file,tunnel:false,bonus:false}}
   const sv=LOCS[startId].surv;
   if(sv){const free=Object.keys(G.locs).filter(k=>!G.locs[k].surv);G.locs[pick(free)].surv=sv}
@@ -242,7 +242,7 @@ function newGame(startId){
   G.tunnel=genTunnel();
   resetEnergy();
   addLog('— Day 1 —','day');
-  addLog(`You barricade yourself inside the ${LOCS[startId].name.toLowerCase()}. Outside, something is listening. No one is coming to save you while it's out there.`);
+  addLog(`You slip inside the ${LOCS[startId].name.toLowerCase()} and slam the door behind you. Outside, something is listening.`);addLog('🔨 It isn\'t safe yet: every window and the front door are wide open. Grab boards from the pile in the middle of the room and nail them over every window and the door before you do anything else.');
   addLog('Tip: go scavenging for supplies, or dig tunnels from your basement to reach other buildings without going outside.');
   dayScreen();
 }
@@ -252,7 +252,7 @@ const waterNeed=()=>G.people.reduce((s,p)=>s+(p.drink?1:0),0);
 function invHTML(){return['food','water','meds','planks','metal','poles'].map(k=>`<span title="${INAME[k]}">${ITEMS[k]} ${G.inv[k]}</span>`).join('')+(G.tools.shovel?'<span title="shovel">🪏</span>':'')+(G.tools.pickaxe?'<span title="pickaxe">⛏️</span>':'')}
 
 /* ---------- screens ---------- */
-function show(h){stopScav();stopTunnel();stopHome();ui.innerHTML=h;ui.style.display='flex';cv.style.display='none';ui.scrollTop=0}
+function show(h){stopScav();stopTunnel();stopHome();if(typeof stopTravel==='function'){stopTravel();stopCutscene()}ui.innerHTML=h;ui.style.display='flex';cv.style.display='none';ui.scrollTop=0}
 function dlg(h){$('#dlgbox').style.maxWidth='';$('#dlgbox').innerHTML=h;$('#dlg').style.display='flex'}
 function closeDlg(){$('#dlg').style.display='none'}
 
@@ -336,8 +336,8 @@ function logout(){if(ACC.token)api('logout',{}).catch(()=>{});sessionLost();titl
 function continueGame(){const sv=loadLocal();if(sv&&sv.game){G=sv.game;dayScreen()}}
 function newRunAsk(){
   const sv=loadLocal();
-  if(sv&&sv.game)return dlg(`<div class="ic">⚠️</div><p>Start a new game? Your current run (day ${sv.game.day}) will be lost.</p><button class="btn red" onclick="closeDlg();startPick()">Start over</button><button class="btn" onclick="closeDlg()">Keep my run</button>`);
-  startPick();
+  if(sv&&sv.game)return dlg(`<div class="ic">⚠️</div><p>Start a new game? Your current run (day ${sv.game.day}) will be lost.</p><button class="btn red" onclick="closeDlg();newStart()">Start over</button><button class="btn" onclick="closeDlg()">Keep my run</button>`);
+  newStart();
 }
 function titleScreen(){
   const got=gotEndings(),sv=loadLocal(),hasRun=sv&&sv.game;
@@ -406,7 +406,7 @@ function overviewScreen(){
 }
 function useMed(i){const p=G.people[i];if(G.inv.meds<=0)return;G.inv.meds--;p.hp=Math.min(100,p.hp+40);if(p.injured){p.injured=false;addLog(`💊 You treated ${p.name}'s wound.`)}tone(660,.2,'sine',.05,1.5);refreshPanel()}
 function rest(){G.acted=true;const y=you();y.hp=Math.min(100,y.hp+25);addLog('💤 You rested and got some strength back (+25 HP).');dayScreen()}
-function sewerAsk(){dlg(`<div class="ic">🌊</div><p>The tunnel has broken into the old storm sewers. They run under the whole city and out past the edge of town.</p><p>Leave now with everyone in your group?</p><button class="btn red" onclick="closeDlg();finish('sewers')">Go into the dark</button><button class="btn" onclick="closeDlg()">Not yet</button>`)}
+function sewerAsk(){if(endingDone('sewers'))return dlg(`<div class="ic">🌊</div><p>You've already escaped through the sewers in another game, and that ending can't happen again. This time you'll have to finish it another way.</p>${hintsHTML()}<button class="btn" onclick="closeDlg()">Okay</button>`);dlg(`<div class="ic">🌊</div><p>The tunnel has broken into the old storm sewers. They run under the whole city and out past the edge of town.</p><p>Leave now with everyone in your group?</p><button class="btn red" onclick="closeDlg();finish('sewers')">Go into the dark</button><button class="btn" onclick="closeDlg()">Not yet</button>`)}
 
 function pickLoc(){
   let h=`<div class="wrap"><div class="top"><h2>Where will you go?</h2><button class="btn" onclick="dayScreen()">← Back</button></div><p class="dim">Places you've raided before have less left. Places linked by tunnel are much safer, because you come up from below.</p><div class="grid">`;
@@ -780,7 +780,7 @@ function tunInteract(){
     const lm=digLight(tunHere());TU.dig={c:t,t:0,dur:(.55+SOIL[t.soil].cost*.45*(G.tools.shovel?1:1.6))*(lm?LIGHTS[lm].dig:1),nt:0};return}
   if(!here||!here.b||!atLadder())return;
   if(here.b==='home')return tunLeave();
-  if(here.b==='sewer'){TU.dlg=true;unlock();for(const k in keys)keys[k]=false;
+  if(here.b==='sewer'){if(endingDone('sewers')){tunMsg("You've already escaped this way in another game. Find a different ending.",3,'red');return}TU.dlg=true;unlock();for(const k in keys)keys[k]=false;
     return dlg(`<div class="ic">🌊</div><p>The storm sewers run under the whole city and out past the edge of town.</p><p>Leave now with everyone in your group?</p><button class="btn red" onclick="closeDlg();stopTunnel();finish('sewers')">Go into the dark</button><button class="btn" onclick="closeDlg();TU.dlg=false">Not yet</button>`)}
   if(G.acted){tunMsg('You\'ve already used your trip today.',2.5,'red');return}
   if(G.storm){tunMsg('The storm is too dangerous today.',2.5,'red');return}
@@ -924,6 +924,10 @@ function unlock(){try{if(locked())document.exitPointerLock()}catch(e){}}
 addEventListener('keydown',e=>{
   if(e.target&&e.target.tagName==='INPUT')return;
   keys[e.code]=true;
+  if(CS&&CS.running){if(['Escape','Enter','Space'].includes(e.code)){e.preventDefault();csEnd()}return}
+  if(TR&&TR.running){if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
+    if(!e.repeat&&(e.code==='ArrowLeft'||e.code==='KeyA'))trLane(-1);if(!e.repeat&&(e.code==='ArrowRight'||e.code==='KeyD'))trLane(1);
+    if(e.code==='KeyP'&&!e.repeat)TR.paused=!TR.paused;if(e.code==='KeyM'&&!e.repeat)muted=!muted;return}
   if(HM&&HM.running){if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab'].includes(e.code))e.preventDefault();
     if(HM.dlg)return;
     if(e.code==='KeyE'&&!e.repeat)homeInteract();
@@ -1190,7 +1194,7 @@ function homeMsg(t,d=2.6){if(HM){HM.msg=t;HM.msgT=d}}
 function enterHome(){
   stopScav();stopTunnel();closeDlg();PANEL=null;updateTunnelLinks();
   G.trap=G.trap||{chains:false,battery:false,speaker:false,flood:false,cage:false,lure:false,light:false};
-  checkUnlock();init3D();
+  checkUnlock();placeFar();init3D();
   if(!R3.lantern){R3.lantern=new THREE.PointLight(0xffb060,0,10,1.4);R3.lantern.position.set(-.3,-.3,.2);R3.camera.add(R3.lantern)}
   const old=HM,keep=old&&old.keepPos;
   HM={running:true,px:keep?old.px:4.5*HT,pz:keep?old.pz:4.7*HT,t:0,last:performance.now(),bob:0,moving:false,msg:'',msgT:0,paused:false,dlg:false,npcs:[],stations:[],solid:new Set(),blocks:[]};
@@ -1238,7 +1242,7 @@ function buildHome(){
   const nb=new THREE.Mesh(new THREE.PlaneGeometry(2.4,1.5),std({map:boardTex()}));nb.position.set(5*HT,1.7,.03);sc.add(nb);st('board',5*HT,.9*HT,2.2);
   // boarded-up window
   const wx=6.6*HT;const sky=new THREE.Mesh(new THREE.PlaneGeometry(1.6,1.2),new THREE.MeshBasicMaterial({color:0x8a949c}));sky.position.set(wx,1.7,.02);sc.add(sky);
-  for(let k=0;k<4;k++){const b=box(1.8,.22,.06,plank,wx,1.2+k*.32,.06);b.rotation.z=rnd(-.08,.08)}
+  
   const wl=new THREE.PointLight(0xc8d4e0,1.5,6,1.6);wl.position.set(wx,1.7,.6);sc.add(wl);
   // supplies shelf: shows what you've actually got
   box(.12,2.3,HT*1.8,wood,7.92*HT,1.15,HT);for(const y of[.45,.95,1.45,1.95])box(HT*.42,.05,HT*1.8,wood,7.75*HT,y,HT);
@@ -1268,21 +1272,21 @@ function buildHome(){
   // hatch down to the basement
   box(1.3,.05,1.3,plank,5.5*HT,.03,4.5*HT);const ring=new THREE.Mesh(new THREE.TorusGeometry(.08,.015,5,12),metal);ring.rotation.x=Math.PI/2;ring.position.set(5.5*HT,.07,4.5*HT);sc.add(ring);st('hatch',5.5*HT,4.5*HT,1.7);
   // barricaded front door
-  box(1.5,2.4,.12,std({color:0x4a3220}),4*HT,1.2,D-.08);for(const r of[.5,-.5]){const b=box(1.9,.18,.06,plank,4*HT,1.2,D-.17);b.rotation.z=r}
+  box(1.5,2.4,.12,std({color:0x4a3220}),4*HT,1.2,D-.08);
   const strip=new THREE.Mesh(new THREE.PlaneGeometry(1.4,.04),new THREE.MeshBasicMaterial({color:0xa8b4bc}));strip.position.set(4*HT,.02,D-.15);strip.rotation.y=Math.PI;sc.add(strip);
   st('door',4*HT,D-.9,2.1);
   // ---- lived-in shelter: boards everywhere, pantry, crates, sleeping mats
   const nail=(x,y,z,w,rot,ry)=>{const b=box(w,.2,.06,plank,x,y,z);b.rotation.z=rot;b.rotation.y=ry||0;return b};
   const boardWin=(x,z,ry)=>{const dz=ry===0?.05:ry===Math.PI?-.05:0,dx=ry===Math.PI/2?.05:ry===-Math.PI/2?-.05:0;
     const back=new THREE.Mesh(new THREE.PlaneGeometry(1.4,1.1),new THREE.MeshBasicMaterial({color:0x6a747c}));back.position.set(x+dx*.4,1.7,z+dz*.4);back.rotation.y=ry;sc.add(back);
-    for(let k=0;k<4;k++){const b=box(1.7,.2,.06,plank,x+dx,1.25+k*.3,z+dz);b.rotation.y=ry;b.rotation.z=rnd(-.1,.1)}
-    const xb=box(1.9,.18,.06,plank,x+dx*1.6,1.7,z+dz*1.6);xb.rotation.y=ry;xb.rotation.z=.55};
+    };
   boardWin(.02,4.3*HT,Math.PI/2);boardWin(1.6*HT,D-.02,Math.PI);boardWin(6.6*HT,D-.02,Math.PI);boardWin(W-.02,2.5*HT,-Math.PI/2);
-  for(const [x,y,z,ry] of[[3.6*HT,2.3,.05,0],[1.2*HT,.6,.05,0],[W-.05,2.4,5.5*HT,-Math.PI/2],[.05,2.5,2.6*HT,Math.PI/2],[5.2*HT,2.6,D-.05,Math.PI]]){const b=box(1.6,.18,.05,plank,x,y,z);b.rotation.y=ry;b.rotation.z=rnd(-.25,.25)}
+  barrBuild(sc,st);const sealed=barrDone();
+  if(sealed)for(const [x,y,z,ry] of[[3.6*HT,2.3,.05,0],[1.2*HT,.6,.05,0],[W-.05,2.4,5.5*HT,-Math.PI/2],[.05,2.5,2.6*HT,Math.PI/2],[5.2*HT,2.6,D-.05,Math.PI]]){const b=box(1.6,.18,.05,plank,x,y,z);b.rotation.y=ry;b.rotation.z=rnd(-.25,.25)}
   // barricade around the front door: crates and sandbags
   const crate=std({color:0x7a5a34}),sand=std({color:0x8a7a5a,roughness:1});
-  for(const [x,y,z,s2] of[[2.9*HT,.35,D-.5,.7],[2.9*HT,1.05,D-.5,.7],[5.1*HT,.35,D-.5,.7],[5.15*HT,1.0,D-.5,.6]]){const c2=box(s2,s2,s2,crate,x,y,z);c2.rotation.y=rnd(-.2,.2)}
-  for(let k=0;k<5;k++){const sb=box(.55,.2,.32,sand,3.3*HT+k*.5,.1,D-.32);sb.rotation.y=rnd(-.15,.15)}
+  if(sealed)for(const [x,y,z,s2] of[[2.9*HT,.35,D-.5,.7],[2.9*HT,1.05,D-.5,.7],[5.1*HT,.35,D-.5,.7],[5.15*HT,1.0,D-.5,.6]]){const c2=box(s2,s2,s2,crate,x,y,z);c2.rotation.y=rnd(-.2,.2)}
+  if(sealed)for(let k=0;k<5;k++){const sb=box(.55,.2,.32,sand,3.3*HT+k*.5,.1,D-.32);sb.rotation.y=rnd(-.15,.15)}
   // pantry rack in the south-west corner: food, water jugs and medicine, matching what you own
   box(HT*1.8,2.0,.08,wood,1*HT,1.0,D-.06);for(const y of[.4,.95,1.5])box(HT*1.8,.05,.5,wood,1*HT,y,D-.32);for(const x of[.1*HT,1.9*HT])box(.06,2,.5,wood,x,1,D-.32);
   const extraFood=Math.max(0,G.inv.food-24),extraWater=Math.max(0,G.inv.water-20);
@@ -1315,7 +1319,7 @@ function buildHome(){
   // ---- what you bump into (real furniture sizes)
   HM.blocks=[[.06*HT,.05*HT,.94*HT,1.95*HT],[2.05*HT,0,2.95*HT,.63*HT],[7.53*HT,.1*HT,W,1.9*HT],[6.85*HT,1.5*HT,7.02*HT,2.9*HT],
     [6.6*HT-.45,5.4*HT-.3,6.6*HT+.45,5.4*HT+.3],[7.75*HT,5.45*HT,W,5.5*HT+.75],[7.08*HT,3.08*HT,W,4.92*HT],[2.2*HT-.3,3.05*HT,3.8*HT+.3,3.95*HT],
-    [0,D-.6,1.95*HT,D],[2.9*HT-.4,D-.9,2.9*HT+.4,D],[5.1*HT-.4,D-.9,5.1*HT+.4,D],[3.3*HT-.3,D-.5,3.3*HT+2.3,D],[6.1*HT-.35,.1,6.55*HT+.32,.8],
+    [0,D-.6,1.95*HT,D],...(barrDone()?[[2.9*HT-.4,D-.9,2.9*HT+.4,D],[5.1*HT-.4,D-.9,5.1*HT+.4,D],[3.3*HT-.3,D-.5,3.3*HT+2.3,D]]:[]),[6.1*HT-.35,.1,6.55*HT+.32,.8],
     [0,2.6*HT,.98,3.4*HT],[4.25*HT-.22,.45*HT-.22,4.25*HT+.22,.45*HT+.22]];
   if(G.trap.cage)HM.blocks.push([6.7*HT,3.0*HT-.1,6.85*HT,3.0*HT+.9]);
   // the people you're keeping alive
@@ -1335,7 +1339,8 @@ function homeTarget(){
   return best;
 }
 function homeLabel(t){
-  if(!t)return'';
+  if(!t)return'';if(t.id==='pile'||t.id.startsWith('barr:'))return barrLabel(t);
+  if(!barrDone()&&['door','hatch','bed'].includes(t.id))return`✖ Board up the shelter first (${barrCount()}/${BARR.length} done)`;
   switch(t.id){
     case'bed':return G.acted?'[E] Bed: sleep (end the day)':'[E] Bed: rest, or sleep to end the day';
     case'table':return"[E] Table: plan tonight's food & water";
@@ -1351,6 +1356,8 @@ function homeLabel(t){
 }
 function homeInteract(){
   if(!HM||HM.dlg||HM.paused)return;const t=homeTarget();if(!t)return;
+  if(t.id==='pile'||t.id.startsWith('barr:'))return barrUse(t);
+  if(!barrDone()&&['door','hatch','bed'].includes(t.id))return homeMsg(`It's not safe yet. Board up every window and the door first (${barrCount()}/${BARR.length}).`,3);
   switch(t.id){
     case'bed':return homeDlg(`<div class="ic">🛏️</div><h2 style="margin:0 0 8px">Your bed</h2><p class="small dim">Resting uses up today's trip. Sleeping ends the day: everyone eats and drinks what you planned at the table.</p>
       <button class="btn" ${G.acted?'disabled':''} onclick="closeDlg();rest()">💤 Rest (+25 HP)</button><button class="btn amber" onclick="closeDlg();endDay()">🌙 Sleep (end the day)</button><button class="btn" onclick="homeClose()">Not yet</button>`);
@@ -1658,10 +1665,10 @@ function numberLines(){const L=['Seven. Four. Nine. It is listening.','Do not si
   'The boy can hear it too. Two. Two.','Six. Six. Six. ...Sorry. Wrong station. Seven.','Four. It is closer than last night. Four.'];
   for(const id in G.locs)if(G.locs[id].file)L.push(`Four. Two. The Listener files rest at the ${LOCS[id].name}. Four. Two.`);return shuffle(L)}
 const RADIO_CH=[
-  {f:'88.1',n:'Emergency Broadcast',lines:emergLines,pitch:1,rate:1,v:0},
+  {f:'88.1',n:'Emergency Broadcast',lines:emergLines,pitch:1,rate:1,v:0,k:'emerg'},
   {f:'93.7',n:'Talk Radio: "Order! Order!" with Bernard Gristle',lines:talkLines,pitch:.8,rate:1.02},
   {f:'101.1',n:'Golden Oldies with DJ Smooth Kevin',lines:djLines,pitch:.9,rate:.9},
-  {f:'66.6',n:'??? (just numbers)',lines:numberLines,pitch:.55,rate:.8,v:3}];
+  {f:'66.6',n:'??? (just numbers)',lines:numberLines,pitch:.55,rate:.8,v:3,k:'nums'}];
 const TV_CH=[
   {n:'📰 Survivor News',lines:()=>{const n=shuffle([...NEWS_EXTRA]);return ['@pam Good evening. This is Survivor News, with me, Pamela Steadman.',...shuffle(clueLines()).slice(0,3).map(x=>'@pam '+x),...n[0],...shuffle(clueLines()).slice(0,2).map(x=>'@pam '+x),...n[1],...n[2]]},pitch:1,draw:drawNews},
   {n:'🦆 Captain Puddle',lines:()=>[...PUDDLE_OPEN,...shuffle([...PUDDLE]).slice(0,9).flat(),...PUDDLE_BYE],pitch:1.6,rate:1.1,draw:drawPuddle},
@@ -1673,10 +1680,10 @@ const TVC=document.createElement('canvas');TVC.width=320;TVC.height=180;const tv
 const TV={cap:'',stat:0,ticker:'',who:null,L:'mavis',R:'trev',last:null};
 function hush(){try{window.speechSynthesis&&speechSynthesis.cancel()}catch(e){}}
 function enVoices(){try{const v=speechSynthesis.getVoices().filter(x=>/^en/i.test(x.lang));return v.filter(x=>/GB/i.test(x.lang)).concat(v.filter(x=>!/GB/i.test(x.lang)))}catch(e){return[]}}
-function say(text,pitch,rate,done,vi){
+function say(text,pitch,rate,done,vi,key){const ov=key&&SET.vox&&SET.vox[key];if(ov){if(ov.p!=null)pitch=ov.p;if(ov.r!=null)rate=ov.r}
   if(muted||!SET.voice||!window.speechSynthesis)return false;
   try{hush();const u=new SpeechSynthesisUtterance(text.replace(/[\u{1F300}-\u{1FAFF}☀-➿“”]/gu,'').replace(/\.\.\.+/g,', '));
-    const vs=enVoices();if(vi!=null&&vs.length)u.voice=vs[vi%vs.length];
+    const vs=enVoices(),pv=ov&&ov.vn&&allVoices().find(x=>x.name===ov.vn);if(pv)u.voice=pv;else if(vi!=null&&vs.length)u.voice=vs[vi%vs.length];
     u.volume=SET.vol/100;u.pitch=pitch||1;u.rate=rate||1;u.onend=done;u.onerror=done;speechSynthesis.speak(u);return true}catch(e){return false}}
 try{if(window.speechSynthesis)speechSynthesis.getVoices()}catch(e){}
 function mediaStop(){MEDIA.tok++;clearTimeout(MEDIA.timer);hush();songStop();if(MEDIA.music){clearInterval(MEDIA.music);MEDIA.music=null}MEDIA.on=null;TV.cap='';TV.who=null}
@@ -1691,7 +1698,7 @@ function mediaNext(){
   if(MEDIA.on==='radio'){const el=$('#rtext');if(el){el.style.opacity=0;setTimeout(()=>{if(tok!==MEDIA.tok)return;el.innerHTML=(who?`<span style="color:#f0d080">${who.n}:</span> `:'')+L.t;el.style.opacity=1},150)}}
   else{TV.cap=L.t;TV.who=L.k||null;const k=L.k;if(k&&['mavis','trev','nige','sand','spoon'].includes(k)&&TV.L!==k&&TV.R!==k){if(TV.last===TV.L)TV.R=k;else TV.L=k}if(k&&k!=='bern'&&k!=='caller')TV.last=k;
     const el=$('#tvcap');if(el)el.innerHTML=(who?`<b style="color:#e8b84a">${who.n}:</b> `:'')+L.t}
-  const spoke=say(L.t,who?who.p:src.pitch,who?who.r:src.rate,go,who?who.v:src.v);
+  const spoke=say(L.t,who?who.p:src.pitch,who?who.r:src.rate,go,who?who.v:src.v,L.k||src.k);
   MEDIA.timer=setTimeout(()=>{if(tok===MEDIA.tok)mediaNext()},spoke?L.t.length*110+6000:Math.max(4200,L.t.length*68));
 }
 function radioDlg(){
@@ -1699,7 +1706,7 @@ function radioDlg(){
   homeDlg(`<div class="ic">📻</div><div class="dial">${RADIO_CH.map((x,i)=>`<span class="${i===MEDIA.ch?'on':''}">${x.f}</span>`).join('')}</div>
   <h3 style="margin:12px 0 8px;text-transform:none;letter-spacing:.02em">${c.f} · ${c.n}</h3>
   <div class="rscreen" id="rtext">~ tuning ~</div>
-  <div style="margin-top:12px"><button class="btn" onclick="tune(-1)">◀ Tune</button><button class="btn" onclick="tune(1)">Tune ▶</button><button class="btn" onclick="mediaNext()">⏭ Next</button><button class="btn" onclick="toggleVoice()">${SET.voice?'🔊 Voice on':'🔇 Voice off'}</button></div>
+  <div style="margin-top:12px"><button class="btn" onclick="tune(-1)">◀ Tune</button><button class="btn" onclick="tune(1)">Tune ▶</button><button class="btn" onclick="mediaNext()">⏭ Next</button><button class="btn" onclick="toggleVoice()">${SET.voice?'🔊 Voice on':'🔇 Voice off'}</button><button class="btn" onclick="voicesDlg('radio')">🎭 Voices</button></div>
   <div><button class="btn" onclick="journalDlg()">📓 Journal</button><button class="btn amber" onclick="homeClose()">Switch off</button></div>`);
   hiss(.4,.06,4000);MEDIA.lines=[];MEDIA.i=0;MEDIA.timer=setTimeout(mediaNext,450);
 }
@@ -1712,7 +1719,7 @@ function tvDlg(){
   mediaStop();MEDIA.on='tv';TV.stat=.45;TV.ticker=clueLines().join('     •     ');const c=TV_CH[MEDIA.tvch];
   homeDlg(`<div id="tvwrap" style="background:#050505;border-radius:10px;padding:8px;border:3px solid #2a2a2e"></div>
   <h3 style="margin:10px 0 4px;text-transform:none;letter-spacing:.02em">${c.n} <span class="dim small">· channel ${MEDIA.tvch+1} of ${TV_CH.length}</span></h3><p id="tvcap" style="min-height:52px;margin:6px 0"></p>
-  <button class="btn" onclick="tvCh(-1)">◀ Channel</button><button class="btn" onclick="tvCh(1)">Channel ▶</button><button class="btn" onclick="mediaNext()">⏭ Next</button><button class="btn" onclick="toggleVoice()">${SET.voice?'🔊 Voice on':'🔇 Voice off'}</button><button class="btn amber" onclick="homeClose()">Turn it off</button>`,true);
+  <button class="btn" onclick="tvCh(-1)">◀ Channel</button><button class="btn" onclick="tvCh(1)">Channel ▶</button><button class="btn" onclick="mediaNext()">⏭ Next</button><button class="btn" onclick="toggleVoice()">${SET.voice?'🔊 Voice on':'🔇 Voice off'}</button><button class="btn" onclick="voicesDlg('tv')">🎭 Voices</button><button class="btn amber" onclick="homeClose()">Turn it off</button>`,true);
   TVC.style.width='100%';TVC.style.display='block';TVC.style.borderRadius='4px';$('#tvwrap').appendChild(TVC);
   hiss(.45,.08,5000);MEDIA.lines=[];MEDIA.i=0;MEDIA.timer=setTimeout(mediaNext,600);
 }
@@ -1799,7 +1806,7 @@ function homeLoop(now){
   if(!HM.paused&&!HM.dlg)homeUpdate(dt);homeRender(dt);homeHud();requestAnimationFrame(homeLoop);
 }
 function homeUpdate(dt){
-  HM.t+=dt;HM.msgT-=dt;
+  HM.t+=dt;HM.msgT-=dt;barrUpdate(dt);
   const mouseOn=locked(),f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),s2=mouseOn?(keys.KeyD?1:0)-(keys.KeyA?1:0):0;
   if(keys.ArrowLeft||(!mouseOn&&keys.KeyA))yaw+=2.4*dt;if(keys.ArrowRight||(!mouseOn&&keys.KeyD))yaw-=2.4*dt;
   const fx=-Math.sin(yaw),fz=-Math.cos(yaw),rx=Math.cos(yaw),rz=-Math.sin(yaw);
@@ -1827,7 +1834,7 @@ function homeHud(){
   cx.fillStyle='#d9a441';cx.fillText(`⚡ Dig energy ${G.energy}`,20,62);
   cx.fillStyle=G.inv.food<fn||G.inv.water<wn?'#d24b43':'#dcd8cc';cx.fillText(`🍽️ Tonight: ${fn} food, ${wn} water (have ${G.inv.food} / ${G.inv.water})`,20,82);
   cx.fillStyle='#8a8676';cx.fillText(`🪤 Trap: ${['chains','battery','speaker','flood'].filter(k=>G.trap[k]).length}/4 parts · ${['cage','lure','light'].filter(k=>G.trap[k]).length}/3 built`,20,102);
-  const pr=keyTxt(homeLabel(homeTarget()));
+  barrHud(W,H);const pr=keyTxt(homeLabel(homeTarget()));
   if(pr){cx.textAlign='center';cx.font='16px Georgia';const w=cx.measureText(pr).width+30;cx.fillStyle='rgba(0,0,0,.65)';cx.fillRect(W/2-w/2,H-84,w,34);cx.fillStyle=pr[0]==='✖'?'#d24b43':'#d9a441';cx.fillText(pr,W/2,H-75)}
   if(HM.msgT>0){cx.textAlign='center';cx.font='18px Georgia';cx.fillStyle=`rgba(230,225,210,${Math.min(1,HM.msgT)})`;cx.fillText(HM.msg,W/2,H*.2)}
   cx.textAlign='left';cx.fillStyle='rgba(140,135,120,.75)';cx.font='12px Georgia';if(!IS_TOUCH)cx.fillText((locked()?'Mouse look · WASD move':'W/S move · A/D turn · click for mouse')+' · E use · Tab overview · M mute',12,H-22);
@@ -2101,7 +2108,7 @@ function build3D(){
 
 /* ----- run ----- */
 function timeAsk(id,inTunnel){
-  const go=d=>`closeDlg();${inTunnel?'stopTunnel();':''}startScav('${id}',${d})`;
+  const go=d=>inTunnel?`closeDlg();stopTunnel();startScav('${id}',${d})`:`closeDlg();travelGame('${id}',${d})`;
   dlg(`<div class="ic">${LOCS[id].ic}</div><h2 style="margin:0 0 10px">When do you go to ${id==='trapsite'?'set the trap':'the '+LOCS[id].name}?</h2>
   <div class="card click" onclick="${go(true)}"><b>🌞 Go now, in daylight</b><div class="small dim" style="margin-top:4px">You can see the empty city clearly. It's sluggish in the day and hears much less, but it can <b>spot you from far away</b>. Keep out of its sight.</div></div>
   <div class="card click" style="margin-top:10px" onclick="${go(false)}"><b>🌙 Wait until dark</b><div class="small dim" style="margin-top:4px">Pitch black except your torch. It can't see far, but it <b>hears every sound</b>. Move quietly.</div></div>
@@ -2119,7 +2126,7 @@ function startScav(id,day){
   let cxp,cyp;
   if(tun){cxp=1.5*T;cyp=1.5*T}
   else{let k=0;do{const r=pick(mp.rooms);cxp=(ri2(r[0],r[2])+.5)*T;cyp=(ri2(r[1],r[3])+.5)*T;k++}while((solid(mp.m[Math.floor(cyp/T)*MW+Math.floor(cxp/T)])||Math.hypot(cxp-S.px,cyp-S.py)<500)&&k<300)}
-  S.cre={x:cxp,y:cyp,state:'wander',tx:cxp,ty:cyp,field:null,tt:-1,distT:0,dormant:tun?20:4,wait:0,lostT:0,lastX:0,lastY:0,anim:0,stun:0,disguised:false};
+  S.cre={x:cxp,y:cyp,state:'wander',tx:cxp,ty:cyp,field:null,tt:-1,distT:0,dormant:tun?16:2,wait:0,lostT:0,lastX:0,lastY:0,anim:0,stun:0,disguised:false};
   if(!S.surv&&G.day>=2&&id!=='trapsite'&&Math.random()<.4){
     let q,k=0;do{const r=pick(mp.rooms);q=[ri2(r[0],r[2]),ri2(r[1],r[3])];k++}while((S.m[q[1]*MW+q[0]]!==1||Math.hypot(q[0]-mp.spawn[0],q[1]-mp.spawn[1])<8)&&k<400);
     S.surv=makeMimic((q[0]+.5)*T,(q[1]+.5)*T);S.cre.disguised=true;S.cre.x=S.surv.x;S.cre.y=S.surv.y}
@@ -2313,11 +2320,11 @@ function updScav(dt){
   const c=S.cre,pd=Math.hypot(c.x-S.px,c.y-S.py);c.anim+=dt;
   if(c.caged){}
   else if(c.disguised){mimicUpdate(dt);if(!S.running)return}
-  else if(c.stun>0){c.stun-=dt;creMove(c,c.tx,c.ty,175,dt);if(c.stun<=0){c.state='wander';[c.tx,c.ty]=randomFloor()}}
+  else if(c.stun>0){c.stun-=dt;creMove(c,c.tx,c.ty,175,dt);if(c.stun<=0){c.state='wander';wanderTarget(c)}}
   else if(c.dormant>0)c.dormant-=dt;
   else{
     if(S.surv&&!S.surv.mimic&&S.surv.mode==='flee'){c.state='npc';creMove(c,S.surv.x,S.surv.y,165,dt);if(Math.hypot(c.x-S.surv.x,c.y-S.surv.y)<26)npcTaken()}else{
-    if(c.state==='npc'){c.state='wander';[c.tx,c.ty]=randomFloor()}
+    if(c.state==='npc'){c.state='wander';wanderTarget(c)}
     const vis=(S.mode==='run'?230:S.mode==='sneak'?105:150)*(S.day?2.3:1);
     const sees=!S.hidden&&pd<vis&&los(c.x,c.y,S.px,S.py);
     if(sees||(S.hunt&&!S.hidden)){if(c.state!=='chase'&&sees){scream();showMsg('IT SEES YOU. RUN!',2)}c.state='chase';c.lostT=0;c.lastX=S.px;c.lastY=S.py}
@@ -2326,9 +2333,10 @@ function updScav(dt){
       else{if(!sees&&!S.hunt){c.lostT+=dt;if(c.lostT>2.5){c.state='investigate';c.tx=c.lastX;c.ty=c.lastY;c.wait=0}}
         creMove(c,S.px,S.py,S.hunt?125:148,dt)}
     }else if(c.state==='investigate'){
-      if(creMove(c,c.tx,c.ty,95,dt)){c.wait+=dt;if(c.wait>2.2){c.state='wander';[c.tx,c.ty]=randomFloor()}}
+      if(creMove(c,c.tx,c.ty,108,dt)){c.wait+=dt;if(c.wait>1.4){c.state='wander';wanderTarget(c)}}
     }else{
-      if(creMove(c,c.tx,c.ty,48,dt)){c.wait+=dt;if(c.wait>1.5){c.wait=0;[c.tx,c.ty]=randomFloor()}}
+      c.retarget=(c.retarget||rnd(9,14))-dt;if(c.retarget<=0){c.retarget=rnd(9,14);wanderTarget(c)}
+      if(creMove(c,c.tx,c.ty,S.day?66:84,dt)){c.wait+=dt;if(c.wait>(Math.random()<.2?1.6:.45)){c.wait=0;wanderTarget(c)}}
     }
     }
     if(S.hidden?(S.seenHide&&Math.hypot(c.x-S.hidden.x,c.y-S.hidden.y)<26):pd<22)return caught();
@@ -2489,14 +2497,12 @@ function finish(forced){
   let e=forced;
   const others=G.people.filter(p=>p.id!=='you');
   if(!e||e==='trapped'){
-    const linked=Object.values(G.locs).filter(l=>l.tunnel).length;
-    if(G.files>=3)e='truth';
-    else if(linked>=4)e='underground';
-    else if(G.dexBetrayed)e='betrayed';
-    else if(others.length===0)e='alone';
-    else if(!G.deaths.length&&!G.lost&&!G.left&&G.rescued>=4)e='everyone';
-    else if(G.deaths.length||G.lost||G.left)e='hard';
-    else e='rescued';
+    const linked=Object.values(G.locs).filter(l=>l.tunnel).length,elig=[];
+    if(G.files>=3)elig.push('truth');if(linked>=4)elig.push('underground');if(G.dexBetrayed)elig.push('betrayed');
+    if(others.length===0)elig.push('alone');else if(!G.deaths.length&&!G.lost&&!G.left&&G.rescued>=4)elig.push('everyone');else if(G.deaths.length||G.lost||G.left)elig.push('hard');else elig.push('rescued');
+    const fresh=elig.filter(k=>!endingDone(k));
+    if(!fresh.length)return repeatBlocked(elig[0]);
+    e=fresh[0];
   }
   saveEnding(e);G.over=true;saveProgress();
   const names=others.map(p=>p.name);const nm=names.length?names.join(', '):'no one';
@@ -2520,8 +2526,393 @@ function finish(forced){
   <p class="dim small" style="margin-top:24px">Survived ${G.day} day${G.day>1?'s':''} · Rescued ${G.rescued} · Lost ${G.deaths.length+G.lost} · Left behind ${G.left} · Files ${G.files}/3</p>
   <h3>Endings found ${got.length}/${Object.keys(ENDINGS).length}</h3>
   <div class="elist">${Object.keys(ENDINGS).map(k=>got.includes(k)?`<span class="got">${ENDINGS[k].ic} ${ENDINGS[k].t}</span>`:'<span>???</span>').join('')}</div>
-  <button class="btn big" onclick="startPick()">PLAY AGAIN</button><br><button class="btn" style="margin-top:10px" onclick="titleScreen()">Title screen</button></div></div>`);
+  <p class="small dim" style="margin-top:14px">🔁 An ending you've already found can't happen again, so next time you'll need to do something different.</p>${hintsHTML()}<button class="btn big" onclick="newStart()">PLAY AGAIN</button><br><button class="btn" style="margin-top:10px" onclick="titleScreen()">Title screen</button></div></div>`);
 }
+
+/* ===================== endings can't repeat ===================== */
+const WIN_ENDS=['truth','underground','betrayed','alone','everyone','hard','rescued','sewers'];
+const END_HINT={truth:'Find all 3 Project Listener files, then trap it.',underground:'Link 4 or more buildings by tunnel, then trap it.',betrayed:'Take the soldier along and trust him... then trap it.',
+  alone:'Trap it with nobody else in your group.',everyone:'Rescue 4+ people, lose nobody, leave nobody behind, then trap it.',hard:'Trap it after losing or leaving someone behind.',
+  rescued:'Trap it with a small group, before you have found all the files or tunnels.',sewers:'Dig all the way to the storm sewers and escape.'};
+const allWinsFound=()=>WIN_ENDS.every(k=>gotEndings().includes(k));
+const endingDone=k=>gotEndings().includes(k)&&!allWinsFound();
+function hintsHTML(){const got=gotEndings(),left=WIN_ENDS.filter(k=>!got.includes(k));if(!left.length)return'';
+  return `<h3 style="margin-top:16px">Endings you haven't found yet</h3>${left.map(k=>`<p class="small" style="margin:5px 0">${ENDINGS[k].ic} <b>${ENDINGS[k].t}</b>: <span class="dim">${END_HINT[k]}</span></p>`).join('')}`}
+function repeatBlocked(e){
+  G.trap.cage=false;G.trap.lure=G.trap.lure;addLog(`🪤 The cage held for a minute... then it tore itself free and vanished into the fog. This is how it ended last time, and it won't end that way again.`);
+  saveProgress();enterHome();
+  homeDlg(`<div class="ic">🔁</div><h2 style="margin:0 0 8px">Not this ending again</h2><p>You've already finished the game with <b>${ENDINGS[e].ic} ${ENDINGS[e].t}</b>, so it can't happen again.</p><p class="dim">The creature ripped the cage apart and escaped. You still have the chains: rebuild the cage at the workbench, change something about your story, and try again.</p>${hintsHTML()}<button class="btn amber" style="margin-top:10px" onclick="homeClose()">Okay</button>`,true)}
+
+/* ===================== new places can be tunnelled to ===================== */
+const FAR_SPOT={factory:[19,2],petrol:[13,11],radio:[12,0],firestation:[19,8],hospital:[17,0],police:[16,11]};
+function placeFar(){if(!G||!G.tunnel)return;for(const id in G.locs){const sp=FAR_SPOT[id];if(!sp)continue;const c=G.tunnel[sp[1]*TW+sp[0]];if(!c||c.b===id||c.b)continue;c.b=id;c.soil='building'}}
+
+/* ===================== the creature roams a lot more ===================== */
+function wanderTarget(c){
+  let best=randomFloor();
+  for(let k=0;k<8;k++){const q=randomFloor();if(Math.hypot(q[0]-c.x,q[1]-c.y)>380){best=q;break}}
+  if(Math.random()<.35)for(let k=0;k<40;k++){const q=randomFloor(),d=Math.hypot(q[0]-S.px,q[1]-S.py);if(d<420&&d>170){best=q;break}}
+  c.tx=best[0];c.ty=best[1]}
+
+/* ===================== voices you can change ===================== */
+Object.assign(VOICES,{emerg:{n:'Emergency announcer (88.1)',p:1,r:1,v:0},nums:{n:'The numbers voice (66.6)',p:.55,r:.8,v:3}});
+const VOX_GROUPS=[['📻 Radio',['emerg','bern','mavis','trev','nige','sand','spoon','caller','kev','nums']],['📺 TV',['pam','gav','pud','ron','chef','asst','den']]];
+const TEST_LINE={bern:'Good evening, and welcome to Order! Order!',mavis:'Bernard, I have the minutes right here.',trev:'Point three... I think it says milk.',nige:'I demand a recount!',sand:'It is mostly bread, Bernard.',
+  spoon:'It would be a spoon.',caller:'Hi Bernard, long-time listener.',kev:'Smooth Kevin here. Let\'s get smooth.',emerg:'This is the emergency broadcast. Stay quiet.',nums:'Seven. Four. Nine.',
+  pam:'Good evening. This is Survivor News.',gav:'Coats, Pamela. Mostly coats.',pud:'Hello boys and girls!',ron:'Ribbit! Quiet ribbit.',chef:'Today: beans. On beans.',asst:'It is cold beans, Chef.',den:'Fog, fog, and more fog.'};
+function voxOf(k){const o=(SET.vox||{})[k]||{},d=VOICES[k];return{vn:o.vn||'',p:o.p!=null?o.p:d.p,r:o.r!=null?o.r:d.r}}
+function voxSet(k,f,v){SET.vox=SET.vox||{};SET.vox[k]={...voxOf(k),...(SET.vox[k]||{}),[f]:v};saveSet();const l=$('#vx_'+k+'_'+f+'_l');if(l)l.textContent=(+v).toFixed(2)}
+function voxReset(k){if(SET.vox)delete SET.vox[k];saveSet();voicesDlg(VOXBACK)}
+function voxTest(k){const was=SET.voice;SET.voice=true;const o=voxOf(k);say(TEST_LINE[k]||'Testing, testing.',o.p,o.r,null,VOICES[k].v,k);SET.voice=was}
+let VOXBACK='settings';
+function voicesDlg(back){
+  VOXBACK=back||VOXBACK;mediaStop();
+  const vs=allVoices();
+  if(!vs.length&&window.speechSynthesis&&!voicesDlg.waited){voicesDlg.waited=true;speechSynthesis.onvoiceschanged=()=>{speechSynthesis.onvoiceschanged=null;if($('#voxlist'))voicesDlg(VOXBACK)}}
+  const row=k=>{const o=voxOf(k);return `<div style="border-top:1px solid #2a2a2e;padding:8px 0;text-align:left"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="flex:1;min-width:170px">${VOICES[k].n}</b>
+    <button class="mini" onclick="voxTest('${k}')">▶ Test</button><button class="mini" onclick="voxReset('${k}')">↺</button></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:5px;font-size:13px">
+    ${vs.length?`<select onchange="voxSet('${k}','vn',this.value)" style="background:#151518;color:#ddd;border:1px solid #444;border-radius:4px;padding:3px;max-width:230px"><option value="">Automatic</option>${vs.map(v=>`<option value="${esc(v.name)}" ${o.vn===v.name?'selected':''}>${esc(v.name)} (${v.lang})</option>`).join('')}</select>`:''}
+    <label>Pitch <input type="range" min=".1" max="2" step=".05" value="${o.p}" oninput="voxSet('${k}','p',+this.value)" style="width:90px;vertical-align:middle"> <span id="vx_${k}_p_l">${o.p.toFixed(2)}</span></label>
+    <label>Speed <input type="range" min=".5" max="1.8" step=".05" value="${o.r}" oninput="voxSet('${k}','r',+this.value)" style="width:90px;vertical-align:middle"> <span id="vx_${k}_r_l">${o.r.toFixed(2)}</span></label></div></div>`};
+  const back2=VOXBACK==='radio'?'radioDlg()':VOXBACK==='tv'?'tvDlg()':'settingsDlg()';
+  const html=`<div class="ic">🎭</div><h2 style="margin:0 0 6px">Voices</h2><p class="small dim">Pick a voice, pitch and speed for everyone on the radio and TV. ${vs.length?`Your device has ${vs.length} voice${vs.length>1?'s':''} to choose from.`:'Your device only gives one voice, but you can still change the pitch and speed.'}</p>
+    <div id="voxlist" style="max-height:52vh;overflow:auto;padding-right:6px">${VOX_GROUPS.map(([g,ks])=>`<h3 style="margin:12px 0 4px;text-align:left">${g}</h3>${ks.map(row).join('')}`).join('')}</div>
+    <button class="btn amber" style="margin-top:12px" onclick="${back2}">Done</button>`;
+  if(HM&&HM.running)homeDlg(html,true);else{dlg(html);$('#dlgbox').style.maxWidth='760px'}}
+function allVoices(){try{const v=speechSynthesis.getVoices();const en=v.filter(x=>/^en/i.test(x.lang));return en.concat(v.filter(x=>!/^en/i.test(x.lang)))}catch(e){return[]}}
+
+/* ===================== barricade your new shelter ===================== */
+const BARR=[{id:'nw',n:'north window',need:4},{id:'ew',n:'east window',need:4},{id:'se',n:'south-east window',need:4},{id:'door',n:'front door',need:4},{id:'sw',n:'south-west window',need:4},{id:'ww',n:'west window',need:4}];
+const barrDone=()=>!G.barr||BARR.every(b=>(G.barr.n[b.id]||0)>=b.need);
+const barrCount=()=>G.barr?BARR.filter(b=>(G.barr.n[b.id]||0)>=b.need).length:BARR.length;
+function barrPos(id){const W=HW*HT,D=HH*HT;return{nw:{x:6.6*HT,z:.07,ry:0,sx:6.6*HT,sz:1.45*HT},ew:{x:W-.07,z:2.5*HT,ry:-Math.PI/2,sx:W-1.5,sz:2.5*HT},
+  se:{x:6.6*HT,z:D-.07,ry:Math.PI,sx:6.6*HT,sz:D-1.7},door:{x:4*HT,z:D-.17,ry:Math.PI,sx:4*HT,sz:D-1.25},sw:{x:1.6*HT,z:D-.07,ry:Math.PI,sx:1.6*HT,sz:D-1.6},ww:{x:.07,z:4.3*HT,ry:Math.PI/2,sx:1.1*HT,sz:4.3*HT}}[id]}
+function barrBoard(sc,id,k){
+  const P=barrPos(id),m=std({color:[0x7a5a34,0x6e5030,0x84623a][k%3]}),b=new THREE.Mesh(new THREE.BoxGeometry(id==='door'?1.95:1.75,.2,.06),m);
+  const into=.04+k*.012;b.position.set(P.x+Math.sin(P.ry)*into,0,P.z);
+  if(P.ry===Math.PI)b.position.z=P.z-into;if(P.ry===0)b.position.z=P.z+into;
+  b.rotation.y=P.ry;
+  if(id==='door'){const L=[[1.2,.55],[1.2,-.55],[.7,.04],[1.8,-.04]][k];b.position.y=L[0];b.rotation.z=L[1]}
+  else{b.position.y=1.22+k*.31;b.rotation.z=[.06,-.08,.05,-.04][k]}
+  sc.add(b);
+  for(const s of[-.7,.7]){const n=new THREE.Mesh(new THREE.SphereGeometry(.025,5,4),std({color:0x9a9a9a,metalness:.7}));n.position.copy(b.position);n.position.x+=Math.cos(P.ry)*s;n.position.z-=Math.sin(P.ry)*s;n.position.y+=Math.sin(b.rotation.z)*s;sc.add(n)}
+  return b}
+function barrBuild(sc,st){
+  if(!G.barr)return;
+  for(const B of BARR){const P=barrPos(B.id),n=G.barr.n[B.id]||0;for(let k=0;k<n;k++)barrBoard(sc,B.id,k);
+    if(n<B.need){st('barr:'+B.id,P.sx,P.sz,2.5);
+      const glow=new THREE.Mesh(new THREE.PlaneGeometry(B.id==='door'?1.7:1.6,B.id==='door'?2.3:1.3),new THREE.MeshBasicMaterial({color:0x6a8aa8,transparent:true,opacity:.18,depthWrite:false}));
+      glow.position.set(P.x+Math.sin(P.ry)*.08,B.id==='door'?1.2:1.7,P.z+(P.ry===0?.08:P.ry===Math.PI?-.08:0));glow.rotation.y=P.ry;sc.add(glow);HM.barrGlow=HM.barrGlow||{};HM.barrGlow[B.id]=glow}}
+  if(!barrDone()){ // the pile of loose boards, with a hammer on top
+    const px=5.4*HT,pz=2.55*HT;for(let i=0;i<9;i++){const b=new THREE.Mesh(new THREE.BoxGeometry(1.7,.05,.2),std({color:0x7a5a34}));b.position.set(px+rnd(-.1,.1),.03+i*.05,pz+(i%3-1)*.22);b.rotation.y=rnd(-.3,.3);sc.add(b)}
+    const hd=new THREE.Mesh(new THREE.BoxGeometry(.06,.06,.18),std({color:0x444,metalness:.7}));hd.position.set(px,.52,pz);sc.add(hd);const hh=new THREE.Mesh(new THREE.BoxGeometry(.3,.035,.035),std({color:0x6a3a1a}));hh.position.set(px+.15,.52,pz);sc.add(hh);
+    st('pile',px,pz,2.2);HM.blocks.push([px-.9,pz-.45,px+.9,pz+.45])}}
+function barrLabel(t){
+  if(t.id==='pile')return G.barr.carry>=4?'✖ Your arms are full. Nail them over a window!':'[E] Pick up boards and the hammer';
+  const B=BARR.find(b=>'barr:'+b.id===t.id),n=G.barr.n[B.id]||0;
+  if(HM.nail&&HM.nail.id===B.id)return`🔨 Nailing... board ${n+1} of ${B.need}`;
+  return G.barr.carry?`[E] Nail boards over the ${B.n} (${n}/${B.need})`:`✖ Get boards from the pile first (${B.n}: ${n}/${B.need})`}
+function barrUse(t){
+  if(t.id==='pile'){if(G.barr.carry>=4)return homeMsg('Your arms are full.');G.barr.carry=4;tone(180,.08,'square',.03);homeMsg('You grab an armful of boards (4) and the hammer.');return}
+  const B=BARR.find(b=>'barr:'+b.id===t.id);if(!G.barr.carry)return homeMsg('You need boards. Get some from the pile in the middle of the room.');
+  HM.nail={id:B.id,t:0,tap:0}}
+function barrUpdate(dt){
+  if(!G.barr||barrDone())return;
+  HM.growlT=(HM.growlT||rnd(8,14))-dt;if(HM.growlT<=0){HM.growlT=rnd(10,18);tone(rnd(48,62),1.4,'sawtooth',.012,.7);homeMsg(pick(['Something moves past the open window...','A long scrape, somewhere outside.','It is out there. Hurry.']),2.4)}
+  const N=HM.nail;if(!N)return;const t=homeTarget();
+  if(!t||t.id!=='barr:'+N.id||!G.barr.carry){HM.nail=null;return}
+  N.t+=dt;N.tap-=dt;if(N.tap<=0){N.tap=.28;tone(rnd(150,210),.05,'square',.04);hiss(.05,.05,1500)}
+  if(N.t>=1.1){N.t=0;const B=BARR.find(b=>b.id===N.id);const k=G.barr.n[N.id]||0;G.barr.n[N.id]=k+1;G.barr.carry--;barrBoard(R3.scene,N.id,k);
+    if(k+1>=B.need){HM.nail=null;HM.stations=HM.stations.filter(s=>s.id!=='barr:'+N.id);if(HM.barrGlow&&HM.barrGlow[N.id])HM.barrGlow[N.id].visible=false;
+      if(barrDone()){G.barr.carry=0;addLog('🔨 You boarded up every window and the door. For the first time, the shelter feels safe.');G.logSeen=G.log.length;saveProgress();HM.keepPos=true;
+        homeMsg('The shelter is sealed!',3);setTimeout(()=>{if(HM&&HM.running){enterHome();homeDlg(`<div class="ic">🔨</div><h2 style="margin:0 0 8px">The shelter is sealed</h2><p>Every window and the front door are boarded up. Now you can go out for supplies, dig tunnels from the hatch, or sleep.</p><button class="btn amber" onclick="homeClose()">Okay</button>`)}},700)}
+      else homeMsg(`The ${B.n} is boarded up! (${barrCount()}/${BARR.length} done)`,2.6);saveProgress()}
+    else if(!G.barr.carry){HM.nail=null;homeMsg('Out of boards. Get more from the pile.')}}}
+function barrHud(W,H){
+  if(!G.barr||barrDone())return;const txt=`🔨 Board up your shelter: ${barrCount()}/${BARR.length} done · carrying ${G.barr.carry} board${G.barr.carry===1?'':'s'}`;
+  cx.textAlign='center';cx.textBaseline='top';cx.font='16px Georgia';const w=cx.measureText(txt).width+30;cx.fillStyle='rgba(60,30,10,.75)';cx.fillRect(W/2-w/2,12,w,30);cx.fillStyle='#f0c070';cx.fillText(txt,W/2,19);
+  if(HM.nail){cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(W/2-90,H/2+24,180,10);cx.fillStyle='#d9a441';cx.fillRect(W/2-90,H/2+24,180*HM.nail.t/1.1,10)}}
+
+/* ===================== the walk there: a lanes minigame ===================== */
+let TR=null;
+TBTNS.travel=[['ArrowLeft','◀','Left','big'],['ArrowRight','▶','Right','big']];
+const OBS={car:{w:1.9,nz:34,n:'an abandoned car'},bin:{w:.8,nz:22,n:'a wheelie bin'},glass:{w:1.1,nz:20,n:'broken glass'},cans:{w:1,nz:14,n:'a pile of tins'},planks:{w:1.3,nz:16,n:'loose planks'}};
+function stopTravel(){if(TR&&TR.running){TR.running=false;setTouch(null);cv.style.display='none';cv.style.pointerEvents='none';cv.onpointerdown=null}}
+function travelGame(id,day){
+  stopHome();closeDlg();const far=!!LOCS[id].far;
+  TR={id,day,running:true,t:0,last:performance.now(),lane:1,lx:1,obs:[],side:[],dist:0,len:far?300:210,speed:9,noise:0,hits:0,spawnT:1.6,flashT:0,shake:0,msg:'',msgT:0,end:0,step:0};
+  for(let z=2;z<62;z+=4)TR.side.push(sideThing(z));
+  ui.style.display='none';gl.style.display='none';cv.style.display='block';cv.style.pointerEvents='auto';resizeCv();setTouch('travel');
+  cv.onpointerdown=e=>{if(!TR||!TR.running||IS_TOUCH&&e.pointerType==='touch'&&e.clientY>innerHeight*.72)return;trLane(e.clientX<innerWidth/2?-1:1)};
+  TR.msg=`Get to the ${id==='trapsite'?'Town Square':LOCS[id].name} without making a sound. ◀ ▶ (or A / D) to switch lanes.`;TR.msgT=4;
+  requestAnimationFrame(travelLoop)}
+function sideThing(z){return{z,side:Math.random()<.5?-1:1,h:rnd(3,9),w:rnd(3,6),c:Math.floor(rnd(20,48)),lamp:Math.random()<.3,win:Math.random()}}
+function trLane(d){if(!TR||TR.end)return;const nl=clamp(TR.lane+d,0,2);if(nl!==TR.lane){TR.lane=nl;tone(90,.05,'sine',.01)}}
+function travelLoop(now){
+  if(!TR||!TR.running)return;const dt=Math.min(.05,(now-TR.last)/1000);TR.last=now;
+  if(!TR.paused)trUpdate(dt);trDraw();requestAnimationFrame(travelLoop)}
+function trUpdate(dt){
+  TR.t+=dt;TR.msgT-=dt;TR.flashT-=dt;TR.shake=Math.max(0,TR.shake-dt*3);
+  TR.lx+=(TR.lane-TR.lx)*Math.min(1,dt*12);
+  if(TR.end){TR.end-=dt;if(TR.end<=0)trArrive();return}
+  TR.speed=Math.min(13.5,9+TR.dist/TR.len*4.5);const mv=TR.speed*dt;TR.dist+=mv;TR.step+=mv;
+  if(TR.step>1.1){TR.step=0;tone(70,.04,'sine',.006)}
+  for(const s of TR.side){s.z-=mv;if(s.z<-2){Object.assign(s,sideThing(s.z+60))}}
+  TR.spawnT-=dt;
+  if(TR.spawnT<=0&&TR.dist<TR.len-25){TR.spawnT=rnd(.75,1.25)*(1.15-TR.dist/TR.len*.35);
+    const lanes=shuffle([0,1,2]).slice(0,Math.random()<.35+TR.dist/TR.len*.35?2:1);
+    for(const l of lanes)TR.obs.push({lane:l,z:60,type:pick(['car','bin','glass','cans','planks','car','bin']),hit:false,rot:rnd(-.15,.15)})}
+  for(const o of TR.obs){o.z-=mv;
+    if(!o.hit&&o.z<.9&&o.z>-.6&&Math.round(TR.lx)===o.lane){o.hit=true;trHit(o)}}
+  TR.obs=TR.obs.filter(o=>o.z>-4);
+  TR.noise=Math.max(0,TR.noise-dt*.8);
+  if(TR.dist>=TR.len){TR.end=2.2;TR.msgT=0}}
+function trHit(o){
+  const O=OBS[o.type];TR.hits++;TR.noise=Math.min(100,TR.noise+O.nz);TR.flashT=.35;TR.shake=1;
+  if(o.type==='car'){[0,1,2,3,4,5].forEach(i=>setTimeout(()=>tone(i%2?740:880,.18,'square',.035),i*200));TR.msg='💥 You hit a car. Its alarm screams into the night!'}
+  else if(o.type==='glass'){glassSound();TR.msg='💥 CRUNCH. You stepped on broken glass.'}
+  else if(o.type==='bin'){hiss(.3,.15,1200);tone(120,.25,'square',.04,.6);TR.msg='💥 You knocked over a wheelie bin!'}
+  else if(o.type==='cans'){[0,1,2,3].forEach(i=>setTimeout(()=>tone(rnd(1400,2200),.08,'triangle',.03),i*90));TR.msg='💥 Tins go clattering across the road!'}
+  else{tone(160,.2,'square',.035,.7);TR.msg='💥 You tripped over loose planks!'}
+  TR.msgT=2;if(TR.noise>=60)setTimeout(()=>{if(TR&&TR.running){tone(55,1.6,'sawtooth',.03,.6);TR.msg='Somewhere in the fog, something answers...';TR.msgT=2.5}},900)}
+function trArrive(){const id=TR.id,day=TR.day,n=TR.noise+TR.hits*6;stopTravel();startScav(id,day);trApply(Math.min(100,n))}
+function trApply(n){
+  const c=S.cre;if(!c||c.caged)return;S.arriveNoise=n;
+  if(n<25){c.dormant+=5;showMsg('You arrived without a sound. It has no idea you are here.',3.5)}
+  else if(n<60){c.dormant=Math.min(c.dormant,1.5);if(!c.disguised){c.state='investigate';c.tx=S.px;c.ty=S.py;c.wait=0}showMsg('It heard something out on the street. It is coming to look...',3.5)}
+  else{c.dormant=0;if(!c.disguised){c.state='investigate';c.tx=S.px;c.ty=S.py;c.wait=0}tone(55,1.2,'sawtooth',.04,.6);showMsg('You made far too much noise getting here. It knows where you came in. HIDE!',4)}}
+function trDraw(){
+  const W=innerWidth/HS(),H=innerHeight/HS(),g=cx,day=TR.day;g.clearRect(0,0,W,H);
+  g.save();if(TR.shake>0)g.translate(rnd(-1,1)*TR.shake*8,rnd(-1,1)*TR.shake*6);
+  const hy=H*.36,cxm=W/2,road=W*.44,P=z=>{const s=3/(Math.max(-2.5,z)+3);return{s,y:hy+(H*1.04-hy)*s}};
+  const sky=g.createLinearGradient(0,0,0,hy);if(day){sky.addColorStop(0,'#8c949a');sky.addColorStop(1,'#b6bbbd')}else{sky.addColorStop(0,'#05070b');sky.addColorStop(1,'#151b22')}g.fillStyle=sky;g.fillRect(-20,-20,W+40,hy+20);
+  g.fillStyle=day?'#5a5f62':'#0c0e10';g.fillRect(-20,hy,W+40,H);
+  // distant skyline
+  g.fillStyle=day?'#7a8084':'#0b0e12';for(let i=0;i<22;i++){const bw=W/22,bh=(Math.sin(i*12.9)*.5+.6)*H*.12;g.fillRect(i*bw,hy-bh,bw-2,bh)}
+  // road
+  const far=P(60),near=P(-2.5);g.fillStyle=day?'#4a4d50':'#16181a';g.beginPath();g.moveTo(cxm-road*far.s,far.y);g.lineTo(cxm+road*far.s,far.y);g.lineTo(cxm+road*near.s,near.y);g.lineTo(cxm-road*near.s,near.y);g.fill();
+  // pavements
+  for(const sd of[-1,1]){g.fillStyle=day?'#6a6e70':'#1e2124';g.beginPath();g.moveTo(cxm+sd*road*far.s,far.y);g.lineTo(cxm+sd*road*1.25*far.s,far.y);g.lineTo(cxm+sd*road*1.25*near.s,near.y);g.lineTo(cxm+sd*road*near.s,near.y);g.fill()}
+  // lane lines scrolling
+  g.strokeStyle=day?'rgba(230,225,200,.55)':'rgba(200,190,150,.28)';
+  for(const lx of[-1/3,1/3])for(let z0=-((TR.dist*1)%4);z0<60;z0+=4){const a=P(z0),b=P(z0+1.8);g.lineWidth=Math.max(1,6*a.s);g.beginPath();g.moveTo(cxm+lx*road*a.s,a.y);g.lineTo(cxm+lx*road*b.s,b.y);g.stroke()}
+  // things to draw, far to near
+  const items=[...TR.side.map(s=>({k:'side',z:s.z,o:s})),...TR.obs.map(o=>({k:'obs',z:o.z,o}))].sort((a,b)=>b.z-a.z);
+  for(const it of items){const p=P(it.z);if(it.z<-2.4)continue;const fog=day?Math.min(1,it.z/70):Math.min(1,it.z/32);
+    if(it.k==='side'){const s=it.o,x=cxm+s.side*road*1.3*p.s+(s.side>0?0:-s.w*W*.02*p.s*3),bw=s.w*W*.06*p.s,bh=s.h*W*.05*p.s;
+      g.fillStyle=`rgb(${s.c},${s.c+2},${s.c+6})`;g.fillRect(s.side>0?x:x-bw,p.y-bh,bw,bh);
+      g.fillStyle=day?'rgba(40,50,60,.6)':'rgba(10,12,16,.9)';for(let r=0;r<Math.floor(s.h/1.6);r++)for(let cc=0;cc<3;cc++)g.fillRect((s.side>0?x:x-bw)+bw*(.1+cc*.3),p.y-bh+bh*(.08+r*1.6/s.h),bw*.18,bh*.6/s.h);
+      g.fillStyle=`rgba(${day?'170,176,180':'8,10,14'},${fog*.85})`;g.fillRect(s.side>0?x:x-bw,p.y-bh,bw,bh)}
+    else{const o=it.o,O=OBS[o.type],x=cxm+(o.lane-1)*(2/3)*road*p.s,u=W*.09*p.s;trObs(g,o,x,p.y,u,day);
+      g.fillStyle=`rgba(${day?'170,176,180':'8,10,14'},${Math.min(1,it.z/(day?70:48))*.55})`;g.fillRect(x-u*O.w*.7,p.y-u*1.6,u*O.w*1.4,u*1.65)}}
+  // eyes in the fog when you're loud
+  if(TR.noise>35&&!day||TR.noise>55){const a=Math.min(1,(TR.noise-35)/40)*(.6+.4*Math.sin(TR.t*3));g.fillStyle=`rgba(255,40,30,${a})`;const ex=cxm+Math.sin(TR.t*.4)*W*.2;g.beginPath();g.arc(ex-5,hy+4,2.2,0,7);g.arc(ex+5,hy+4,2.2,0,7);g.fill()}
+  // torch cone at night
+  if(!day){const tg=g.createRadialGradient(cxm+(TR.lx-1)*road*.55,H*.8,10,cxm+(TR.lx-1)*road*.55,H*.62,H*.55);tg.addColorStop(0,'rgba(255,230,170,.10)');tg.addColorStop(1,'rgba(0,0,0,.55)');g.fillStyle=tg;g.fillRect(-20,hy,W+40,H)}
+  // you
+  const yp=P(.2),yx=cxm+(TR.lx-1)*(2/3)*road*yp.s,u=W*.09*yp.s,sw=Math.sin(TR.dist*3.2)*(TR.end?0:1);
+  g.fillStyle='#222831';g.fillRect(yx-u*.32+sw*u*.08,yp.y-u*.95,u*.24,u*.95);g.fillRect(yx+u*.08-sw*u*.08,yp.y-u*.95,u*.24,u*.95);
+  g.fillStyle='#3a4a3a';g.beginPath();g.ellipse(yx,yp.y-u*1.55,u*.5,u*.7,0,0,7);g.fill();g.fillStyle='#5a4a2a';g.fillRect(yx-u*.36,yp.y-u*1.95,u*.72,u*.75);
+  g.fillStyle='#2a2018';g.beginPath();g.arc(yx,yp.y-u*2.42,u*.3,0,7);g.fill();
+  g.restore();
+  if(TR.flashT>0){g.fillStyle=`rgba(200,30,20,${TR.flashT})`;g.fillRect(0,0,W,H)}
+  // HUD
+  const bw=Math.min(360,W*.6);g.fillStyle='rgba(0,0,0,.6)';g.fillRect(W/2-bw/2-10,10,bw+20,58);
+  g.textAlign='center';g.textBaseline='top';g.font='15px Georgia';g.fillStyle='#dcd8cc';g.fillText(`${day?'🌞':'🌙'} On the way to the ${TR.id==='trapsite'?'Town Square':LOCS[TR.id].name}`,W/2,15);
+  g.fillStyle='#333';g.fillRect(W/2-bw/2,36,bw,9);g.fillStyle='#6fae5a';g.fillRect(W/2-bw/2,36,bw*Math.min(1,TR.dist/TR.len),9);
+  g.fillStyle='#333';g.fillRect(W/2-bw/2,50,bw,9);g.fillStyle=TR.noise>60?'#d24b43':TR.noise>25?'#d9a441':'#8aa0b0';g.fillRect(W/2-bw/2,50,bw*TR.noise/100,9);
+  g.font='11px Georgia';g.textAlign='left';g.fillStyle='#bbb';g.fillText('distance',W/2+bw/2+14,34);g.fillText('noise',W/2+bw/2+14,48);
+  if(TR.msgT>0||TR.end){const m=TR.end?(TR.noise+TR.hits*6<25?`You made it to the ${LOCS[TR.id].name}. Not a sound. 🤫`:TR.noise+TR.hits*6<60?`You made it... but something heard you.`:`You made it, but you were LOUD. It's coming.`):TR.msg;
+    g.font='17px Georgia';g.textAlign='center';const w=g.measureText(m).width+30;g.fillStyle='rgba(0,0,0,.7)';g.fillRect(W/2-w/2,H*.24,w,34);g.fillStyle=TR.end?'#e8d8a8':'#f0c070';g.fillText(m,W/2,H*.24+9)}}
+function trObs(g,o,x,y,u,day){const sh=(c,a)=>day?c:a;
+  switch(o.type){
+    case'car':{const w=u*1.9,h=u*1.05;g.fillStyle='rgba(0,0,0,.35)';g.fillRect(x-w*.55,y-u*.1,w*1.1,u*.18);g.fillStyle=sh('#6a2a24','#2a1210');g.fillRect(x-w/2,y-h,w,h*.62);g.fillStyle=sh('#5a2420','#200e0c');g.fillRect(x-w*.36,y-h*1.35,w*.72,h*.45);
+      g.fillStyle=sh('#9ab0bc','#1a2228');g.fillRect(x-w*.3,y-h*1.28,w*.6,h*.32);g.fillStyle='#111';g.fillRect(x-w*.45,y-h*.38,w*.18,h*.38);g.fillRect(x+w*.27,y-h*.38,w*.18,h*.38);
+      g.fillStyle=sh('#d8c8a0','#5a4a30');g.fillRect(x-w*.46,y-h*.75,w*.12,h*.1);g.fillRect(x+w*.34,y-h*.75,w*.12,h*.1);break}
+    case'bin':{const w=u*.7,h=u*1.1;g.save();g.translate(x,y);g.rotate(o.rot);g.fillStyle=sh('#2a5a2a','#102010');g.fillRect(-w/2,-h,w,h);g.fillStyle=sh('#1a3a1a','#0a140a');g.fillRect(-w*.56,-h*1.08,w*1.12,h*.12);g.restore();break}
+    case'glass':{g.fillStyle=sh('rgba(160,200,190,.8)','rgba(120,170,160,.55)');for(let i=0;i<9;i++){const a=i*2.3+o.rot*10,px=x+Math.cos(a)*u*.5*((i%3)/3+.3),py=y-u*.08+Math.sin(a)*u*.07;g.beginPath();g.moveTo(px,py-u*.12);g.lineTo(px+u*.07,py);g.lineTo(px-u*.06,py+u*.02);g.fill()}
+      if(Math.sin(TR.t*6+o.z)>.6){g.fillStyle='rgba(255,255,255,.9)';g.fillRect(x-u*.1,y-u*.12,u*.05,u*.05)}break}
+    case'cans':{for(let i=0;i<6;i++){const px=x+(i%3-1)*u*.28,py=y-Math.floor(i/3)*u*.3;g.fillStyle=sh('#b8402a','#4a1a10');g.fillRect(px-u*.12,py-u*.28,u*.24,u*.28);g.fillStyle=sh('#ccc','#555');g.fillRect(px-u*.12,py-u*.28,u*.24,u*.04)}break}
+    case'planks':{g.fillStyle=sh('#7a5a34','#2a1e12');for(let i=0;i<3;i++){g.save();g.translate(x,y-u*.08*i);g.rotate((i-1)*.25+o.rot);g.fillRect(-u*.65,-u*.06,u*1.3,u*.12);g.restore()}break}}}
+
+/* ===================== opening cutscene ===================== */
+let CS=null;
+function stopCutscene(){if(CS&&CS.running){CS.running=false;clearInterval(CS.siren);const sk=$('#csSkip');if(sk)sk.remove();gl.style.display='none';cv.style.display='none'}}
+function playIntro(done){
+  show('');ui.style.display='none';ac();init3D();
+  const sc=new THREE.Scene();sc.background=new THREE.Color(0x05070a);sc.fog=new THREE.Fog(0x05070a,10,30);if(R3.scene)disposeScene(R3.scene);R3.scene=sc;sc.add(R3.camera);R3.flash.intensity=0;if(R3.lantern)R3.lantern.intensity=0;
+  const box=(w,h,d,m,x,y,z)=>{const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);b.position.set(x,y,z);sc.add(b);return b};
+  const amb=new THREE.AmbientLight(0xcfe0ff,.35);sc.add(amb);const hemi=new THREE.HemisphereLight(0xd0e0ff,0x101418,.35);sc.add(hemi);
+  const floorT=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#8a9096';g.fillRect(0,0,w,h);g.strokeStyle='#5a6066';g.lineWidth=3;for(let i=0;i<=4;i++){g.beginPath();g.moveTo(i*64,0);g.lineTo(i*64,h);g.stroke();g.beginPath();g.moveTo(0,i*64);g.lineTo(w,i*64);g.stroke()}});floorT.repeat.set(6,5);
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(24,20),std({map:floorT,roughness:.5}));fl.rotation.x=-Math.PI/2;fl.position.set(0,0,0);sc.add(fl);
+  const wallM=std({color:0x4a5056,roughness:.8}),dk=std({color:0x22262a}),met=std({color:0x9aa2aa,metalness:.7,roughness:.3});
+  box(24,5,.2,wallM,0,2.5,-10);box(24,5,.2,wallM,0,2.5,10);box(.2,5,20,wallM,-12,2.5,0);box(.2,5,20,wallM,12,2.5,0);box(24,.2,20,dk,0,5,0);
+  const strips=[];for(const x of[-6,0,6])for(const z of[-5,2]){const s=box(3,.06,.3,new THREE.MeshBasicMaterial({color:0xe8f0ff}),x,4.92,z);strips.push(s)}
+  const white=new THREE.PointLight(0xe8f0ff,6,22,1.3);white.position.set(0,4.4,-1);sc.add(white);
+  const red1=new THREE.PointLight(0xff2010,0,18,1.2);red1.position.set(-6,4.3,-6);sc.add(red1);const red2=new THREE.PointLight(0xff2010,0,18,1.2);red2.position.set(6,4.3,4);sc.add(red2);
+  for(const p of[red1,red2])box(.3,.2,.3,new THREE.MeshBasicMaterial({color:0x661010}),p.position.x,4.8,p.position.z);
+  // the tank
+  const tx=0,tz=-5.5;box(3.4,.5,3.4,met,tx,.25,tz);box(3.4,.4,3.4,met,tx,4.6,tz);
+  const glassM=new THREE.MeshStandardMaterial({color:0x8fd8e8,transparent:true,opacity:.22,roughness:.05,metalness:.1,side:THREE.DoubleSide});
+  const tank=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,4,24,1,true),glassM);tank.position.set(tx,2.5,tz);sc.add(tank);
+  const crackT=canvasTex(256,256,(g,w,h)=>{g.clearRect(0,0,w,h)});crackT.wrapS=crackT.wrapT=THREE.ClampToEdgeWrapping;
+  const crack=new THREE.Mesh(new THREE.PlaneGeometry(2.4,3.2),new THREE.MeshBasicMaterial({map:crackT,transparent:true,depthWrite:false}));crack.position.set(tx,2.4,tz+1.52);sc.add(crack);
+  const tankL=new THREE.PointLight(0x40ffb0,3,6,1.5);tankL.position.set(tx,2.6,tz);sc.add(tankL);
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(4,.7),new THREE.MeshBasicMaterial({map:canvasTex(512,90,(g,w,h)=>{g.fillStyle='#1a1d20';g.fillRect(0,0,w,h);g.fillStyle='#e8e0c8';g.font='bold 44px sans-serif';g.textAlign='center';g.fillText('PROJECT LISTENER',w/2,60)})}));sign.position.set(0,4.1,-9.88);sc.add(sign);
+  // monitors and desks
+  const monT=document.createElement('canvas');monT.width=256;monT.height=128;const mg=monT.getContext('2d'),monTex=new THREE.CanvasTexture(monT);
+  const drawMon=(txt,col)=>{mg.fillStyle='#03100a';mg.fillRect(0,0,256,128);mg.fillStyle=col;mg.font='bold 22px monospace';mg.fillText('SUBJECT L',16,36);mg.font='18px monospace';mg.fillText(txt,16,72);mg.fillStyle=col;for(let i=0;i<10;i++)mg.fillRect(16+i*22,110-Math.random()*20,14,4);monTex.needsUpdate=true};drawMon('STATUS: CALM','#40ff90');
+  for(const [x,z,ry] of[[-5,-1,.6],[5,-1,-.6],[-6.5,3,1.2]]){const d=box(2.4,.9,1,std({color:0xd8dcdc}),x,.45,z);d.rotation.y=ry;const m=new THREE.Mesh(new THREE.PlaneGeometry(1,.55),new THREE.MeshBasicMaterial({map:monTex}));m.position.set(x,1.3,z);m.rotation.y=ry+Math.PI;m.position.x-=Math.sin(ry)*.25;m.position.z-=Math.cos(ry)*.25;sc.add(m)}
+  const door=box(2.2,3.2,.15,std({color:0x5a6066,metalness:.5}),0,1.6,9.85);box(2.6,.2,.3,new THREE.MeshBasicMaterial({color:0x40c060}),0,3.4,9.8);
+  // people
+  const coat=()=>humanoid(0xeceff0);const ppl=[];
+  const mk=(m,x,z,ry,role,spd)=>{m.position.set(x,0,z);m.rotation.y=ry;sc.add(m);const p={m,x,z,role,run:false,tx:x,tz:z,gone:false,spd:spd||4.2};ppl.push(p);return p};
+  const sci1=mk(coat(),-1.4,-3.2,Math.PI*.9,'tapper',4.6),sci2=mk(coat(),-5,0,-.6,'desk',2.6),sci3=mk(coat(),5,0,.6,'desk',4.2),sci4=mk(coat(),-6.2,3.8,-1.2,'desk'),guard=mk(humanoid(0x2a3a5a),3,5,Math.PI,'guard',3.6);sci2.fallAt=13.2;sci4.cower=true;
+  const clip=box(.25,.02,.32,std({color:0xc8a060}),-1.25,1.1,-3.35);
+  const torchL=new THREE.SpotLight(0xfff0d0,0,18,.45,.5,1.2);sc.add(torchL);sc.add(torchL.target);
+  const cre=creatureMesh();cre.position.set(tx,0,tz);cre.rotation.y=0;sc.add(cre);const cst={state:'wander',anim:0,stun:0};
+  const shards=[];
+  CS={running:true,t:0,last:performance.now(),done,sc,ppl,cre,cst,stage:0,subs:'',sub2:'',black:0,flick:0,
+    cam:[[0,0,0,[0,1.8,-4]],[6.5,0,0,[-1.4,1.3,-4.2]],[9,0,0,[0,2.3,-5.5]],[12.5,0,0,[0,1.6,-4]],[17,0,0,[-2.5,1,2]],[22.5,0,0,[0,1.4,9.6]],[27,0,0,[0,1.7,9.8]]]};
+  const sk=document.createElement('button');sk.id='csSkip';sk.className='btn';sk.textContent='Skip ⏭';sk.style.cssText='position:fixed;right:18px;bottom:18px;z-index:60';sk.onclick=()=>csEnd();document.body.appendChild(sk);
+  gl.style.display='block';cv.style.display='block';resizeCv();R3.renderer.setSize(innerWidth,innerHeight,false);R3.camera.aspect=innerWidth/innerHeight;R3.camera.updateProjectionMatrix();
+  const subAt=[[0,'Hale Research Facility. Sub-level 4.'],[3.2,'Project Listener.'],[5.6,'“Careful. It can hear everything.”'],[8.4,''],[9.6,'CONTAINMENT BREACH'],[13,''],[17.5,''],[22,'Within the hour, it was in the city.'],[26,'']];
+  const S2=CS;
+  function frame(now){
+    if(!S2.running)return;const dt=Math.min(.05,(now-S2.last)/1000);S2.last=now;S2.t+=dt;const t=S2.t;
+    for(const [at,s] of subAt)if(t>=at)S2.subs=s;
+    // camera path
+    const K=S2.cam;let i=0;while(i<K.length-2&&t>K[i+1][0])i++;const a=K[i],b=K[i+1],f=clamp((t-a[0])/(b[0]-a[0]),0,1),e=f*f*(3-2*f);
+    const camPos=[[0,2.4,7],[-2.4,1.7,-1.2],[0,2.2,-2.2],[1.5,1.9,0.5],[3,3.2,8.5],[1,2.2,-1.5],[0,2,1]];
+    const pa=camPos[i],pb=camPos[i+1];R3.camera.position.set(pa[0]+(pb[0]-pa[0])*e,pa[1]+(pb[1]-pa[1])*e+(S2.shake||0)*rnd(-.05,.05),pa[2]+(pb[2]-pa[2])*e);
+    const la=a[3],lb=b[3];R3.camera.lookAt(la[0]+(lb[0]-la[0])*e,la[1]+(lb[1]-la[1])*e,la[2]+(lb[2]-la[2])*e);S2.shake=Math.max(0,(S2.shake||0)-dt*2);
+    // story beats
+    const beat=(n,at,fn)=>{if(S2.stage<n&&t>=at){S2.stage=n;fn()}};
+    beat(1,2.2,()=>{sci1.tap=true});
+    beat(2,5.8,()=>{clip.position.set(-1.1,.03,-3);clip.rotation.set(0,.6,0);tone(900,.08,'square',.03);setTimeout(()=>tone(600,.1,'square',.03),70)});
+    beat(3,6.3,()=>{cst.look=true;tone(52,1.2,'sawtooth',.04,.7)});
+    beat(4,8.6,()=>{crackDraw(crackT,1);S2.shake=1;hiss(.3,.2,2500);tone(70,.4,'square',.05,.5)});
+    beat(5,9.6,()=>{crackDraw(crackT,2);S2.shake=1.2;hiss(.4,.25,3000);drawMon('CONTAINMENT BREACH','#ff4030');S2.alarm=true;S2.siren=setInterval(()=>{tone(S2.hi?720:560,.42,'square',.025);S2.hi=!S2.hi},450)});
+    beat(6,11.2,()=>{tank.visible=false;crack.visible=false;S2.shake=2;glassSound();hiss(.9,.35,7000);tankL.color.set(0xff4020);
+      for(let k=0;k<40;k++){const m=new THREE.Mesh(new THREE.PlaneGeometry(rnd(.06,.2),rnd(.06,.2)),new THREE.MeshBasicMaterial({color:0xbfe8f0,transparent:true,opacity:.7,side:THREE.DoubleSide}));const an=rnd(-1.2,1.2)+Math.PI/2;
+        m.position.set(tx+Math.cos(an)*1.5,rnd(.5,4),tz+Math.sin(an)*1.5);m.userData.v=new THREE.Vector3(Math.cos(an)*rnd(2,6),rnd(0,3),Math.sin(an)*rnd(2,6));sc.add(m);shards.push(m)}
+      for(const p of ppl)if(p.role!=='guard'&&!p.cower){p.run=true;p.tx=rnd(-1,1);p.tz=9}sci4.m.scale.y=.62;sci4.m.rotation.y=.8;cst.out=true});
+    beat(7,13.5,()=>{guard.aim=true;torchL.intensity=40;cst.flinch=1.2;tone(200,.3,'sawtooth',.03,1.6)});
+    beat(8,15,()=>{guard.run=true;guard.tx=1;guard.tz=9.2;torchL.intensity=0;cst.hunt=sci2;S2.subs2=1});
+    beat(9,21,()=>{cst.toDoor=true});
+    // tapping scientist
+    if(sci1.tap&&!sci1.run){sci1.m.userData.arms[1].rotation.x=-1.3+Math.sin(t*14)*.15;if(Math.floor(t*4)%2===0&&t<5.5&&!S2.tk){S2.tk=1;tone(1800,.04,'sine',.02);setTimeout(()=>S2.tk=0,240)}}
+    // people
+    for(const p of ppl){const ud=p.m.userData;if(p.gone){p.m.visible=false;continue}
+      if(p.fallAt&&t>p.fallAt&&!p.fell){p.fell=true;p.run=false;p.m.rotation.x=-1.35;p.m.position.y=.25;tone(140,.2,'square',.03,.6)}
+      if(p.fell&&!p.gone){ud.arms[0].rotation.x=-2+Math.sin(t*9)*.3}
+      if(p.run){const dx=p.tx-p.x,dz=p.tz-p.z,d=Math.hypot(dx,dz);if(d>.2){const sp=p.spd*dt;p.x+=dx/d*sp;p.z+=dz/d*sp;p.m.rotation.y=Math.atan2(-dx,-dz)+Math.PI;const sw=Math.sin(t*14)*.8;ud.legs[0].rotation.x=sw;ud.legs[1].rotation.x=-sw;ud.arms[0].rotation.x=-sw;ud.arms[1].rotation.x=sw}
+        else if(p.tz>8.5){p.gone=true}p.m.position.set(p.x,0,p.z)}
+      else if(p.aim){p.m.rotation.y=Math.atan2(cre.position.x-p.x,cre.position.z-p.z)+Math.PI;ud.arms[0].rotation.x=-1.4}}
+    if(guard.aim&&!guard.run){torchL.position.set(guard.x,1.5,guard.z);torchL.target.position.copy(cre.position);torchL.target.position.y=1.8}
+    // the creature
+    cst.anim+=dt;let sp=0;
+    if(cst.look&&!cst.out){const ang=Math.atan2(sci1.x-cre.position.x,sci1.z-cre.position.z);cre.rotation.y+=(ang-cre.rotation.y)*Math.min(1,dt*4);cst.state='investigate'}
+    if(cst.out){cst.state='chase';let tgt=null;
+      if(cst.flinch>0){cst.flinch-=dt;cst.stun=cst.flinch;sp=0}
+      else if(cst.toDoor)tgt=[0,10.5];
+      else{if(!cst.hunt||cst.hunt.gone)cst.hunt=ppl.find(p=>!p.gone&&!p.taking&&(p.fell||p.cower))||null;tgt=cst.hunt?[cst.hunt.x,cst.hunt.z]:[0,6]}
+      if(tgt){const dx=tgt[0]-cre.position.x,dz=tgt[1]-cre.position.z,d=Math.hypot(dx,dz);sp=Math.min(d,(cst.toDoor?6:4.6)*dt)/dt;if(d>.1){cre.position.x+=dx/d*sp*dt;cre.position.z+=dz/d*sp*dt;cre.rotation.y=Math.atan2(dx,dz)}
+        if(cst.hunt&&!cst.hunt.gone&&d<1.1&&!cst.toDoor){const v=cst.hunt;v.taking=true;S2.black=.85;scream();setTimeout(()=>{v.gone=true},250);cst.hunt=null}}
+      if(!cst.toDoor){cre.position.x=clamp(cre.position.x,-11,11);cre.position.z=clamp(cre.position.z,-9,9)}}
+    if(cst.toDoor&&cre.position.z>9.3){door.rotation.x=-1.2;door.position.y=.3;cre.visible=false;if(!S2.boom){S2.boom=1;S2.shake=2;tone(45,.8,'square',.06,.4);hiss(.6,.3,1500)}}
+    animCreature(cre.userData,sp,cst,dt);
+    for(const m of shards){m.position.addScaledVector(m.userData.v,dt);m.userData.v.y-=9.8*dt;if(m.position.y<.02){m.position.y=.02;m.userData.v.set(0,0,0)}m.rotation.x+=dt*5}
+    // lights
+    if(S2.alarm){const p=(Math.sin(t*6)+1)/2;red1.intensity=p*14;red2.intensity=(1-p)*14;white.intensity=t>14&&t<21?(Math.random()<.15?0:1.2):2.5;for(const s of strips)s.visible=white.intensity>.5;amb.intensity=.12}
+    S2.black=Math.max(0,S2.black-dt*1.2);
+    R3.renderer.render(sc,R3.camera);
+    // overlay text
+    const W=innerWidth/HS(),H=innerHeight/HS();cx.clearRect(0,0,W,H);
+    const bars=Math.min(1,t/1.2)*H*.09;cx.fillStyle='#000';cx.fillRect(0,0,W,bars);cx.fillRect(0,H-bars,W,bars);
+    const fade=t<1?1-t:t>25?Math.min(1,(t-25)/1.2):S2.black;if(fade>0){cx.fillStyle=`rgba(0,0,0,${fade})`;cx.fillRect(0,0,W,H)}
+    if(S2.subs){cx.textAlign='center';cx.textBaseline='middle';const big=S2.subs==='CONTAINMENT BREACH';cx.font=big?'bold 30px sans-serif':'20px Georgia';cx.fillStyle=big?`rgba(255,70,50,${.6+.4*Math.sin(t*10)})`:'#e8e2d0';cx.fillText(S2.subs,W/2,H-bars-34)}
+    if(t>26.2){const L=['Nobody knew what it was.','Only that it hunts by sound.','Find somewhere to hide. Board it up.','And whatever you do... stay quiet.'];cx.textAlign='center';cx.textBaseline='middle';cx.font='22px Georgia';
+      L.forEach((l,k)=>{const a=clamp((t-26.4-k*1.4)/.8,0,1);cx.fillStyle=`rgba(232,226,208,${a})`;cx.fillText(l,W/2,H/2-45+k*34)})}
+    if(t>33)return csEnd();
+    requestAnimationFrame(frame)}
+  requestAnimationFrame(frame)}
+function crackDraw(tex,level){const c=tex.image,g=c.getContext('2d');g.strokeStyle='rgba(235,250,255,.9)';g.lineWidth=2;
+  for(let k=0;k<(level===1?7:16);k++){g.beginPath();let x=128,y=118;g.moveTo(x,y);const a=rnd(0,6.28);for(let s=0;s<6;s++){x+=Math.cos(a+rnd(-.5,.5))*rnd(10,24);y+=Math.sin(a+rnd(-.5,.5))*rnd(10,24);g.lineTo(x,y)}g.stroke()}tex.needsUpdate=true}
+function csEnd(){if(!CS||!CS.running)return;const d=CS.done;stopCutscene();if(d)d()}
+function newStart(){playIntro(startPick)}
+/* ===================== more radio channels ===================== */
+Object.assign(VOICES,{edna:{n:'Grandma Edna',p:1.25,r:.82,v:4},clive:{n:'Clive Shinpad',p:.85,r:1.15,v:0},barb:{n:'Barbara Whistle',p:1.3,r:1.1,v:1},
+  doc:{n:'Dr Patience Wellbeing',p:1.05,r:.95,v:4},shop:{n:'Darren (QuietShop)',p:1,r:1.28,v:2},hush:{n:'Quiet FM host',p:.7,r:.78,v:3}});
+VOX_GROUPS[0][1].push('edna','clive','barb','doc','shop','hush');
+Object.assign(TEST_LINE,{edna:'Once upon a time, dear, there was a door.',clive:'And she is hiding behind the sofa. Textbook!',barb:'Absolutely textbook, Clive.',doc:'Hello caller, you are on Ask Dr Patience.',shop:'Call now! Well, whisper now!',hush:'Shhh. This is Quiet FM.'});
+const EDNA=scenes([
+ "@edna Hello, my little dumplings. It's Grandma Edna, with your bedtime story. Get under the covers. All the way under. That's it.",
+ "@edna Once upon a time there were three little pigs. The first built his house out of straw. The second built his out of sticks. And the third built his out of straw AND sticks AND forty planks AND a fridge against the door. Guess which one is still with us, dears.",
+ "@edna Once upon a time, a girl in a red hood went to visit her granny. And when she got there, her granny said: “What big ears you have.” And the girl said: “Granny, that's MY line.” ...And then they both screamed and hid in the wardrobe. The end.",
+ "@edna Goldilocks found three bowls of porridge. One too hot, one too cold, and one just right. She ate them all, very quietly, and was home before dark. Because Goldilocks, my loves, was sensible.",
+ "@edna Once upon a time, there was a little mouse who found a whole tin of biscuits. He could have eaten them all at once. But he ate one a night, very quietly, and he lived happily ever after. That, my dears, is called rationing.",
+ "@edna The moral of tonight's story is: never, ever go into the woods. Or the park. Or the shops after six. Or anywhere, really. Night night.",
+ "@edna Once upon a time, a boy cried wolf. Then he cried creature. Then everyone said “shush, Gerald”, and Gerald learned an important lesson about indoor voices.",
+ "@edna Rapunzel let down her long hair, and a prince climbed up. Very romantic. Also, very clever: no stairs means nothing can come up the stairs. Rapunzel was ahead of her time, dears.",
+ "@edna Once upon a time, there was a princess who couldn't sleep, because there was a pea under her mattress. Forty mattresses, and she could still feel it. Imagine how well she'd hear something creeping down the hall. She'd have been very useful, that princess.",
+ "@edna I'll tell you a scary story. Once upon a time... no. No. Let's do a nice one. Once upon a time there was a fluffy bunny who stayed indoors. The end. Lovely.",
+ "@edna Sleeping Beauty slept for a hundred years. Can you imagine? A hundred years of not making a sound. She'd have been perfectly safe. Sleep tight, petals. Like Sleeping Beauty. But less.",
+ "@edna Hush little baby, don't you cry. Mostly because it can hear you. Grandma loves you. Night night."]);
+const SPORT=scenes([
+ ["@clive Welcome to the Hiding Olympics! I'm Clive Shinpad.","@barb And I'm Barbara Whistle. What a night of sport we have for you, Clive.","@clive We do, Barbara. Mostly we have a man in a cupboard."],
+ ["@clive And here's Dennis from the flats, going for the under-the-bed hide. Textbook position.","@barb Absolutely textbook, Clive. Feet tucked, breathing low. He's done this before.","@clive Oh, but he's left a slipper sticking out. That'll cost him points."],
+ ["@barb Over to the curtain event now, and Margaret is behind the curtain.","@clive Classic curtain, Barbara. But look at the feet. You can see her feet.","@barb You can ALWAYS see the feet, Clive. Every year, the feet."],
+ ["@clive Breaking news from the sneaking hundred metres: a new world record! Forty-five minutes!","@barb For a hundred metres?","@clive That's how you win it, Barbara. Slowest wins. Fastest gets eaten."],
+ ["@barb A controversial moment in the freezing-still event. The judges say Tony blinked.","@clive Tony says it was a twitch.","@barb The judges are seven feet tall, Clive. I wouldn't argue."],
+ ["@clive Let's have a look at the replay. Here she comes, tiptoes, past the creaky floorboard... she steps on the creaky floorboard.","@barb Oh, she's stepped on it.","@clive She has absolutely stood on it, Barbara.","@barb We'll be right back after this... silence."],
+ ["@barb The football results. Everybody nil. Nobody turned up. Except one team, who were never seen again.","@clive Tough season for them."],
+ ["@clive In the bin-hiding finals, Gary has been in his wheelie bin for nineteen days now.","@barb A true professional.","@clive His wife says he's not even hiding any more. He just likes it in there."],
+ ["@barb A new event this year, Clive: synchronised whispering.","@clive Lovely to watch. Terrible to listen to. Because you can't hear a thing."],
+ ["@clive And there's a pitch invasion! ...Barbara, that's not a fan.","@barb Back to the studio! Back to the studio, quietly!"],
+ ["@barb Clive, who's your tip for gold?","@clive I've got my money on the lady who boarded up her house in nine minutes. Hammer technique: outstanding."]]);
+const DOC=scenes([
+ ["@doc Hello, and welcome to Ask Dr Patience. You're on the air.","@caller Hi Doctor. I haven't been outside in five weeks. Is that bad?","@doc Not at all. Five weeks indoors? You're doing brilliantly. Next caller."],
+ ["@caller Doctor, my husband keeps snoring and I'm worried it'll hear him.","@doc Have you tried rolling him onto his side?","@caller Yes.","@doc Have you tried a peg on his nose?","@caller ...Yes.","@doc Have you tried a different husband? I'm joking. Try the peg again."],
+ ["@caller Doctor, I've been eating nothing but beans for three weeks.","@doc And how are you feeling?","@caller Windy.","@doc Right. Please don't do that near a window. It travels."],
+ ["@caller Dr Patience, I think I'm going a bit stir crazy. I've started talking to my potato.","@doc That's very common. What does the potato say?","@caller It says I'm doing great.","@doc Well, then the potato and I agree."],
+ ["@caller Doctor, my neighbour knocked last night and asked to borrow sugar, but his voice sounded a bit... off.","@doc Did you open the door?","@caller No.","@doc Good. Never lend sugar after dark. Doctor's orders."],
+ ["@caller Doctor, how much sleep should I be getting?","@doc Eight hours, ideally. In shifts. With someone else awake. Holding a torch."],
+ ["@caller Doctor, I keep hearing a voice in my head telling me to stay inside and keep quiet.","@doc That's the radio, love. You've got me on very loud."],
+ ["@doc Today's top tip: drink plenty of water, eat what you can, and if you feel scared, breathe in for four, out for four. Quietly. Very quietly. Out of your nose."],
+ ["@caller Doctor, is it normal to miss going to work?","@doc No. Next caller."],
+ ["@caller Doctor, my children are bored. What do you suggest?","@doc Have you tried a game of who can be quietest the longest?","@caller They've been playing it for three days.","@doc And?","@caller It's lovely. I've never been so relaxed."]]);
+const SHOP=scenes([
+ "@shop Hi! It's Darren from QuietShop, the shopping channel for these quiet times! Lines are open! Well, whisper-lines.",
+ "@shop Today's star product: the Silent Slipper! Fluffy on the inside, extra fluffy on the outside. Walk past anything without a peep. Only three tins of beans! Or two tins and a really good biscuit.",
+ "@shop Do you have a squeaky door? Of course you do. Introducing: Hinge Butter. It's butter. For your hinges. We've put it in a fancy pot.",
+ "@shop Next up: the Torch Five Thousand! It's very bright. Very, very bright. Do not look into it. Darren looked into it. Darren is reading this off a card he can't see.",
+ "@shop Introducing the Board-O-Matic: everything you need to board up your windows. In the box: some boards. That's it. That's the product. They're good boards though.",
+ "@shop Today only: the Inflatable Decoy Neighbour! Pop him on the lawn and let him do the waiting outside, so you don't have to. Comes with a little hat.",
+ "@shop And for the kids: the Whisper-phone! Two tin cans and a piece of string! The future is here, people.",
+ "@shop Earplugs! For when your partner snores. And because the creature hunts by sound, we'll throw in a second pair for your partner. For their mouth. Not really. Do not put earplugs in your mouth.",
+ "@shop We've had a call from Brenda, who bought the Silent Slipper. She says, and I quote, “I can't hear myself walking any more.” Thank you, Brenda! Brenda, are you still there? ...Brenda?",
+ "@shop Last chance! Last chance for the Glow-in-the-Dark Dressing Gown! Oh. No. Hang on, I've just been told that's a terrible idea. Product withdrawn. Moving on!",
+ "@shop Remember: QuietShop has a no-returns policy. Mostly because nobody can get here. Or back."]);
+const QUIET_SONGS=[
+ {t:'Nocturne for a Locked Door',a:'The Hush Quartet',bpm:66,key:57,minor:1,style:'ballad',lead:'sine',v:[0,3,6,2],c:[5,3,4,0],b:[3,4,0,4],seed:211},
+ {t:'Waltz of the Floorboards',a:'Madame Velvetine',bpm:88,key:55,minor:0,style:'waltz',lead:'sine',v:[0,4,5,3],c:[1,4,0,0],b:[3,0,4,4],seed:223},
+ {t:'Moonlit Rationing',a:'The Tiptoe Strings',bpm:70,key:60,minor:0,style:'ballad',lead:'triangle',v:[0,5,3,4],c:[3,4,0,0],b:[5,3,1,4],seed:227},
+ {t:'Lullaby for the Last Candle',a:'Sister Ember',bpm:62,key:53,minor:1,style:'waltz',lead:'sine',v:[0,5,3,4],c:[5,6,0,0],b:[3,4,5,4],seed:229},
+ {t:'Prelude in Fog Minor',a:'Professor Pianissimo',bpm:74,key:50,minor:1,style:'ballad',lead:'triangle',v:[0,6,5,4],c:[3,4,0,0],b:[5,2,3,4],seed:233}];
+const HUSH=["@hush Shhh. This is Quiet FM. Soft music, for the long dark.","@hush That was lovely. Wasn't it. Let's just... sit with it for a moment.","@hush If you're listening in the dark: you're not alone. Well, you might be. But we're here.",
+ "@hush Coming up, something gentle. Turn it down low. Lower than that.","@hush A request now, from someone who didn't want to give their name. Or speak. They slid it under the door.","@hush Breathe in. And out. And listen.",
+ "@hush Quiet FM. No adverts. No news. No shouting. Just us.","@hush Close your eyes, if you can. Keep your torch close, if you can't."];
+function quietLines(){const out=['@hush Good evening. Shhh. This is Quiet FM.'];shuffle([...QUIET_SONGS]).forEach((s,i)=>{out.push(`@hush ${pick(['Here is','Now,','Next, very softly:'])} ${s.t}, by ${s.a}.`,{song:s},pick(HUSH))});return out}
+const flat=a=>shuffle([...a]).flat();
+RADIO_CH.push(
+  {f:'76.4',n:'Bedtime Stories with Grandma Edna',lines:()=>[EDNA[0][0],...flat(EDNA.slice(1))],pitch:1.25,rate:.82},
+  {f:'89.9',n:'QuietShop: the shopping channel',lines:()=>[SHOP[0][0],...flat(SHOP.slice(1))],pitch:1,rate:1.28},
+  {f:'99.9',n:'Quiet FM: soft music for the long dark',lines:quietLines,pitch:.7,rate:.78},
+  {f:'104.9',n:'Sports: The Hiding Olympics',lines:()=>[...SPORT[0],...flat(SPORT.slice(1))],pitch:1,rate:1.1},
+  {f:'107.3',n:'Ask Dr Patience (phone-in)',lines:()=>[...flat(DOC)],pitch:1,rate:.95});
+RADIO_CH.sort((a,b)=>parseFloat(a.f)-parseFloat(b.f));MEDIA.ch=RADIO_CH.findIndex(c=>c.f==='88.1');
 
 titleScreen();
 </script>
