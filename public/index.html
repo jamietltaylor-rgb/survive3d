@@ -391,7 +391,7 @@ function endDay(){
   let col=0;
   for(const c of G.tunnel){if(!c.dug||c.soil==='building')continue;
     let d=SOIL[c.soil].decay*(c.sup?SUPS[c.sup].mult:1);d*=nearSupportMult(c);if(has('tom'))d=Math.max(0,d-5);
-    c.stab-=d;if(c.stab<=0){c.dug=false;c.sup=null;c.stab=0;c.light=0;col++}}
+    c.stab-=d;c.stab=Math.max(c.stab,supportFloor(c));if(c.stab<=0){c.dug=false;c.sup=null;c.stab=0;c.light=0;col++}}
   if(col)lines.push(`💥 You heard a deep rumble. ${col} section${col>1?'s':''} of tunnel collapsed.`);
   else if(has('tom')&&G.tunnel.some(c=>c.dug&&c.soil!=='building'))lines.push('🔨 Tom shored up the tunnels.');
   // night attack
@@ -491,7 +491,10 @@ function braceCheck(c,mat){
   if(G.inv[mat]<=0)return `You don't have any ${SUPS[mat].n.toLowerCase()}.`;
   return null;
 }
-const SPREAD={planks:{add:10,red:.15},metal:{add:15,red:.25},poles:{add:25,red:.35}};
+const SPREAD={planks:{add:10,red:.15,floor:35},metal:{add:15,red:.25,floor:45},poles:{add:25,red:.35,floor:60}};
+// a section next to a braced one never drops below that brace's minimum strength
+function supportFloor(c){let f=0;if(c&&!c.sup)for(const n of nbrs(c))if(n.dug&&n.sup)f=Math.max(f,SPREAD[n.sup].floor);return f}
+function applySupportFloors(){for(const c of G.tunnel)if(c.dug&&!c.b){const f=supportFloor(c);if(c.stab<f)c.stab=f}}
 function nearSupportMult(c){let r=0;for(const n of nbrs(c))if(n.dug&&n.sup)r+=SPREAD[n.sup].red;return Math.max(.3,1-r)}
 function braceDo(c,mat){
   G.inv[mat]--;c.sup=mat;c.stab=Math.min(100,c.stab+SUPS[mat].add);
@@ -564,7 +567,7 @@ function startTunnel3D(){
 function stopTunnel(){if(TU&&TU.running){TU.running=false;stopDrone();unlock();gl.style.display='none';cv.style.display='none'}}
 function tunMsg(t,d=2.8,c=''){TU.msg=t;TU.msgT=d;TU.msgc=c}
 function buildTunnel3D(){
-  const tx=tunTex();TU.autoLit=autoLight();
+  const tx=tunTex();applySupportFloors();TU.autoLit=autoLight();
   if(R3.scene)disposeScene(R3.scene);
   const sc=new THREE.Scene();sc.background=new THREE.Color(0x030202);sc.fog=new THREE.FogExp2(0x030202,.11);
   R3.scene=sc;sc.add(R3.camera);
@@ -746,7 +749,7 @@ function tunHud(){
   const here=tunHere();
   if(here&&here.dug&&!here.b){const st=Math.round(here.stab);cx.fillStyle=st<25?'#d24b43':st<55?'#d9a441':'#6fae5a';
     cx.fillText(`This section: ${st}% stable${here.sup?' · '+SUPS[here.sup].ic:''}${st<25?' · DANGER':''}`,20,88);
-    if(nearSupportMult(here)<1){cx.fillStyle='#8fb8d8';cx.fillText('🛡️ Helped by nearby supports',20,110)}}
+    if(nearSupportMult(here)<1){cx.fillStyle='#8fb8d8';cx.fillText(here.sup?'🛡️ Helped by nearby supports':`🛡️ Held up by a support next door (min ${supportFloor(here)}%)`,20,110)}}
   else if(here&&here.b){cx.fillStyle='#8a8676';cx.fillText(here.b==='home'?'Your basement':here.b==='sewer'?'Storm sewer':LOCS[here.b].name+' basement',20,88)}
   // minimap
   const cell=Math.max(6,Math.min(11,(W*.26)/TW)),mw=cell*TW,mh=cell*TH,mx0=W-mw-14,my0=14;
