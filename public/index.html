@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>The Quiet Outside 3D</title>
 <meta name="description" content="Something is listening. Scavenge, dig, save people, and survive 20 days.">
 <style>
@@ -64,12 +64,25 @@ label{font-size:14px;margin-right:12px;cursor:pointer}
 
 .inp{display:block;width:100%;font:17px Georgia,serif;background:#0f1114;color:var(--txt);border:1px solid var(--line);border-radius:5px;padding:11px 12px;margin:8px 0}
 .inp:focus{outline:none;border-color:var(--amber)}
+#touch{position:fixed;inset:0;z-index:4;display:none;pointer-events:none}
+#touch.on{display:block}
+#stick{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.22);display:none}
+#knob{position:absolute;left:35px;top:35px;width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.32)}
+#tbtns{position:absolute;right:max(12px,env(safe-area-inset-right));bottom:12px;display:flex;flex-wrap:wrap-reverse;gap:9px;justify-content:flex-end;max-width:230px;pointer-events:auto}
+.tb{width:58px;height:58px;border-radius:50%;background:rgba(18,18,22,.62);border:2px solid rgba(255,255,255,.25);color:#fff;font:600 11px Georgia,serif;display:flex;flex-direction:column;align-items:center;justify-content:center;user-select:none;-webkit-user-select:none;touch-action:none;text-align:center;line-height:1.1}
+.tb span{font-size:20px}
+.tb.big{width:78px;height:78px;border-color:#d9a441;font-size:13px}
+.tb.on{background:rgba(217,164,65,.55)}
+#tpause{position:absolute;top:calc(max(10px,env(safe-area-inset-top)) + 40px);right:max(10px,env(safe-area-inset-right));pointer-events:auto;width:44px;height:44px;font-size:18px}
+#rotHint{position:absolute;top:42%;left:10%;right:10%;text-align:center;color:#fff;background:rgba(0,0,0,.72);padding:14px;border-radius:8px;font:16px Georgia,serif;display:none}
+@media (pointer:coarse){.btn{padding:13px 18px}.mini{padding:9px 12px}h1{margin-top:4vh}}
 kbd{background:#262a31;border:1px solid #3a3f49;border-radius:3px;padding:1px 6px;font-family:monospace;color:#fff}
 </style>
 </head>
 <body>
 <div id="ui"></div>
 <canvas id="gl"></canvas>
+<div id="touch"><div id="stick"><div id="knob"></div></div><div id="tbtns"></div><div class="tb" id="tpause">⏸</div><div id="rotHint">↻ Turn your phone sideways for the best view</div></div>
 <canvas id="cv"></canvas>
 <div id="dlg"><div class="box" id="dlgbox"></div></div>
 
@@ -94,8 +107,12 @@ const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function wpick(w){let s=0;for(const k in w)s+=w[k];let r=Math.random()*s;for(const k in w){if((r-=w[k])<0)return k}return Object.keys(w)[0]}
 
+/* ---------- device ---------- */
+const IS_TOUCH=!!(window.matchMedia&&matchMedia('(pointer:coarse)').matches);
+const keyTxt=t=>IS_TOUCH&&t?t.replace('[E]','👆').replace('[F] ',''):t;
+const HS=()=>IS_TOUCH&&Math.min(innerWidth,innerHeight)<520?.72:1;
 /* ---------- settings ---------- */
-const SET=(()=>{const d={vol:80,loudGlass:false,screams:true,jump:true,heart:true};try{return{...d,...JSON.parse(localStorage.getItem('qo_settings')||'{}')}}catch(e){return d}})();
+const SET=(()=>{const d={vol:80,loudGlass:false,screams:true,jump:true,heart:true,sens:1};try{return{...d,...JSON.parse(localStorage.getItem('qo_settings')||'{}')}}catch(e){return d}})();
 function saveSet(){try{localStorage.setItem('qo_settings',JSON.stringify(SET))}catch(e){}}
 let MASTER=null;
 function outNode(){if(!MASTER){MASTER=AC.createGain();MASTER.connect(AC.destination)}MASTER.gain.value=SET.vol/100;return MASTER}
@@ -103,6 +120,7 @@ function glassSound(){if(SET.loudGlass){hiss(.6,.3,6000)}else{hiss(.25,.05,3000)
 function settingsDlg(){
   const ck=(k,l,d)=>`<label style="display:block;margin:12px 0;cursor:pointer"><input type="checkbox" ${SET[k]?'checked':''} onchange="SET['${k}']=this.checked;saveSet()"> <b>${l}</b><br><span class="small dim" style="display:block;margin-left:24px">${d}</span></label>`;
   dlg(`<div class="ic">⚙️</div><h2 style="margin:0 0 6px">Settings</h2>
+  <label style="display:block;margin:10px 0"><b>Look speed</b> <span id="sv">${Math.round(SET.sens*100)}%</span><br><input type="range" min="30" max="250" value="${Math.round(SET.sens*100)}" style="width:100%" oninput="SET.sens=this.value/100;document.getElementById('sv').textContent=this.value+'%';saveSet()"></label>
   <label style="display:block;margin:10px 0"><b>Volume</b> <span id="vv">${SET.vol}%</span><br><input type="range" min="0" max="100" value="${SET.vol}" style="width:100%" oninput="SET.vol=+this.value;document.getElementById('vv').textContent=this.value+'%';if(MASTER)MASTER.gain.value=SET.vol/100;saveSet()"></label>
   ${ck('loudGlass','Loud glass smash','The big crash when you break open a glass case. Off = a soft tinkle instead. (The creature still hears it either way!)')}
   ${ck('screams','Creature screams','The shriek when it spots you or catches you. Off = a quiet low tone.')}
@@ -330,7 +348,7 @@ function titleScreen(){
   <p><b>Not everyone is who they seem.</b> Sometimes the creature pretends to be a survivor calling for help. Talk to them and look at them closely. If something's wrong, shine your torch in their eyes (<kbd>F</kbd>) and it will flee for a while. A torch flash in the creature's eyes also scares it off briefly.</p>
   <p><b>Tunnels:</b> climb down into your basement and dig through the earth yourself. Face a wall and press <kbd>E</kbd> to dig. Every second section gets a free candle automatically. Upgrade lights (or add more) with <kbd>L</kbd> (candle → lantern → bulb → floodlight). Brighter tunnels are faster to dig. Weak soil collapses, so brace sections with <kbd>1</kbd> planks, <kbd>2</kbd> metal or <kbd>3</kbd> scaffold poles. Each support also strengthens the sections next to it. Break into other buildings' basements to sneak in from below.</p>
   <p><b>People:</b> you'll find survivors who can help you, but every one is another mouth to feed. If you leave someone behind, they might stay and cry for help, follow you, or turn on you, and anyone who makes too much noise out there gets found. Your choices decide which of the 11 endings you get.</p>
-  <p class="small">Needs a computer with a keyboard. A mouse is optional. Best with headphones, in the dark. Your game saves automatically every day.</p></div></div>`);
+  <p class="small">${IS_TOUCH?'📱 On a phone or tablet: drag the left side of the screen to walk, drag the right side to look around, and use the round buttons for everything else. Turn your phone sideways for the best view.':'Play with a keyboard (a mouse is optional). On a phone or tablet you get touch controls instead.'} Best with headphones, in the dark. Your game saves automatically every day.</p></div></div>`);
   if(ACC.online===null)checkOnline().then(async on=>{if(on&&ACC.token){try{await syncFromServer()}catch(e){if(e.status===401)sessionLost()}}if($('#acct'))titleScreen()});
 }
 
@@ -597,11 +615,11 @@ function startTunnel3D(){
   TU={running:true,px:2.5*TT,pz:6.5*TT,dig:null,msg:'',msgT:0,msgc:'',t:0,last:performance.now(),bob:0,moving:false,shake:0,dust:[],creakT:3,paused:false,dlg:false};
   yaw=-Math.PI/2;pitch=0;
   ui.style.display='none';cv.style.display='block';gl.style.display='block';
-  buildTunnel3D();resizeCv();
+  buildTunnel3D();resizeCv();setTouch('tunnel');
   tunMsg(G.energy>0?'You climb down into the basement. Face a wall and press E to dig.':'You\'re too tired to dig any more today.',3.5);
   startDrone();requestAnimationFrame(tunLoop);
 }
-function stopTunnel(){if(TU&&TU.running){TU.running=false;stopDrone();unlock();gl.style.display='none';cv.style.display='none'}}
+function stopTunnel(){if(TU&&TU.running){TU.running=false;setTouch(null);stopDrone();unlock();gl.style.display='none';cv.style.display='none'}}
 function tunMsg(t,d=2.8,c=''){TU.msg=t;TU.msgT=d;TU.msgc=c}
 function buildTunnel3D(){
   const tx=tunTex();applySupportFloors();TU.autoLit=autoLight();
@@ -703,12 +721,12 @@ function tunUpdate(dt){
   const mouseOn=locked(),f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),s=mouseOn?(keys.KeyD?1:0)-(keys.KeyA?1:0):0;
   if(keys.ArrowLeft||(!mouseOn&&keys.KeyA))yaw+=2.4*dt;if(keys.ArrowRight||(!mouseOn&&keys.KeyD))yaw-=2.4*dt;
   const fx=-Math.sin(yaw),fz=-Math.cos(yaw),rx=Math.cos(yaw),rz=-Math.sin(yaw);
-  let mx=fx*f+rx*s,mz=fz*f+rz*s;const ml=Math.hypot(mx,mz);TU.moving=false;
+  const tj=touchMove();let mx=fx*(f+tj[0])+rx*(s+tj[1]),mz=fz*(f+tj[0])+rz*(s+tj[1]);const ml=Math.hypot(mx,mz);TU.moving=false;
   if(ml>0){
     if(TU.dig){TU.dig=null;tunMsg('Stopped digging.',1)}
     mx/=ml;mz/=ml;const sp=keys.Space?5:3.2;
-    const nx=TU.px+mx*sp*dt;if(!tunBlocked(nx,TU.pz))TU.px=nx;
-    const nz=TU.pz+mz*sp*dt;if(!tunBlocked(TU.px,nz))TU.pz=nz;
+    const stuck=tunBlocked(TU.px,TU.pz);const nx=TU.px+mx*sp*dt;if(stuck||!tunBlocked(nx,TU.pz))TU.px=nx;
+    const nz=TU.pz+mz*sp*dt;if(stuck||!tunBlocked(TU.px,nz))TU.pz=nz;
     TU.moving=true;TU.bob+=dt*(keys.Space?12:8);
   }
   if(TU.dig){
@@ -775,7 +793,7 @@ function tunBrace(mat){
   tunMsg(braceDo(c,mat),2.5,'green');tone(300,.1,'square',.05);hiss(.2,.1,2000);buildTunnel3D();saveProgress();
 }
 function tunHud(){
-  const W=innerWidth,H=innerHeight;cx.clearRect(0,0,W,H);
+  const W=innerWidth/HS(),H=innerHeight/HS();cx.clearRect(0,0,W,H);
   cx.fillStyle='rgba(255,255,255,.6)';cx.beginPath();cx.arc(W/2,H/2,2.2,0,7);cx.fill();
   cx.textAlign='left';cx.textBaseline='top';
   cx.fillStyle='rgba(0,0,0,.55)';cx.fillRect(10,10,330,128);
@@ -806,11 +824,11 @@ function tunHud(){
   if(here&&here.dug){const lv=here.light||0,nx=LIGHTS[lv+1];const lt=nx?`[L] ${lv?`Upgrade ${LIGHTS[lv].ic} → ${nx.ic} ${nx.n}`:`${nx.ic} Place a candle`} (${costTxt(nx.cost)})`:`${LIGHTS[4].ic} Floodlight (max)`;
     cx.font='14px Georgia';const lw=cx.measureText(lt).width+30;cx.fillStyle='rgba(0,0,0,.55)';cx.fillRect(W/2-lw/2,H-156,lw,28);cx.fillStyle=nx&&!lightCheck(here)?'#ffd870':'#8a8676';cx.fillText(lt,W/2,H-150)}
   cx.fillStyle='rgba(0,0,0,.55)';cx.fillRect(W/2-bw/2,H-122,bw,28);cx.fillStyle=here&&here.dug&&!here.b?'#dcd8cc':'#6d6a60';cx.fillText('Brace this section:  '+br,W/2,H-116);
-  const pr=tunPrompt();
+  const pr=keyTxt(tunPrompt());
   if(pr){cx.font='16px Georgia';const w=cx.measureText(pr).width+30;cx.fillStyle='rgba(0,0,0,.65)';cx.fillRect(W/2-w/2,H-84,w,34);cx.fillStyle=pr[0]==='✖'?'#d24b43':'#d9a441';cx.fillText(pr,W/2,H-75)}
   if(TU.msgT>0){cx.font='18px Georgia';const c=TU.msgc==='red'?'210,75,67':TU.msgc==='green'?'111,174,90':'230,225,210';cx.fillStyle=`rgba(${c},${Math.min(1,TU.msgT)})`;cx.fillText(TU.msg,W/2,H*.2)}
   cx.textAlign='left';cx.fillStyle='rgba(140,135,120,.75)';cx.font='12px Georgia';
-  cx.fillText((locked()?'Mouse look · WASD move':'W/S move · A/D turn · click for mouse')+' · E dig / use · 1-3 brace · L light · Q back to shelter · M mute',12,H-22);
+  if(!IS_TOUCH)cx.fillText((locked()?'Mouse look · WASD move':'W/S move · A/D turn · click for mouse')+' · E dig / use · 1-3 brace · L light · Q back to shelter · M mute',12,H-22);
   if(TU.paused){cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(0,0,W,H);cx.fillStyle='#fff';cx.textAlign='center';cx.font='40px Georgia';cx.fillText('PAUSED',W/2,H/2-30);cx.font='16px Georgia';cx.fillStyle='#8a8676';cx.fillText('click to continue',W/2,H/2+24)}
 }
 function tunnelScreen(){startTunnel3D()}
@@ -926,11 +944,42 @@ addEventListener('keyup',e=>keys[e.code]=false);
 const act=()=>(S&&S.running)?S:(TU&&TU.running)?TU:(HM&&HM.running)?HM:null;
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;const a=act();if(a&&!a.dlg)a.paused=true});
 gl.addEventListener('click',()=>{const a=act();if(a&&!a.dlg){a.paused=false;try{gl.requestPointerLock()}catch(e){}}});
-document.addEventListener('mousemove',e=>{if(locked()&&act()&&!act().dlg&&!act().paused){yaw-=e.movementX*.0022;pitch=clamp(pitch-e.movementY*.0022,-1.25,1.25)}});
-function resizeCv(){const d=Math.min(devicePixelRatio||1,2);cv.width=innerWidth*d;cv.height=innerHeight*d;cv.style.width=innerWidth+'px';cv.style.height=innerHeight+'px';cx.setTransform(d,0,0,d,0,0);
+document.addEventListener('mousemove',e=>{if(locked()&&act()&&!act().dlg&&!act().paused){yaw-=e.movementX*.0022*SET.sens;pitch=clamp(pitch-e.movementY*.0022*SET.sens,-1.25,1.25)}});
+function resizeCv(){const d=Math.min(devicePixelRatio||1,2);cv.width=innerWidth*d;cv.height=innerHeight*d;cv.style.width=innerWidth+'px';cv.style.height=innerHeight+'px';cx.setTransform(d*HS(),0,0,d*HS(),0,0);
   if(R3){R3.renderer.setSize(innerWidth,innerHeight,false);R3.camera.aspect=innerWidth/innerHeight;R3.camera.updateProjectionMatrix()}}
 addEventListener('resize',resizeCv);
 
+/* ----- touch controls (phones & tablets) ----- */
+const TOUCH={jx:0,jy:0,stick:null,look:null,sx:0,sy:0,lx:0,ly:0,mode:null};
+const touchMove=()=>{const m=Math.hypot(TOUCH.jx,TOUCH.jy);return m<.22?[0,0]:[-TOUCH.jy,TOUCH.jx]};
+function fireKey(code){window.dispatchEvent(new KeyboardEvent('keydown',{code}));setTimeout(()=>window.dispatchEvent(new KeyboardEvent('keyup',{code})),60)}
+const TBTNS={
+  home:[['KeyE','👆','Use','big'],['Tab','📋','Menu']],
+  scav:[['KeyE','👆','Use','big'],['KeyF','🔦','Flash'],['ShiftLeft','🤫','Sneak','toggle'],['Space','🏃','Run','hold']],
+  tunnel:[['KeyE','⛏️','Dig/Use','big'],['KeyL','💡','Light'],['Digit1','🪵','Planks'],['Digit2','🔩','Metal'],['Digit3','🏗️','Poles'],['KeyQ','🏠','Leave']]};
+function setTouch(mode){
+  if(!IS_TOUCH)return;TOUCH.mode=mode;const el=$('#touch');
+  TOUCH.jx=TOUCH.jy=0;TOUCH.stick=TOUCH.look=null;$('#stick').style.display='none';keys.ShiftLeft=false;keys.Space=false;
+  if(!mode){el.classList.remove('on');return}
+  el.classList.add('on');
+  $('#tbtns').innerHTML=TBTNS[mode].map(([c,ic,l,k])=>`<div class="tb ${k==='big'?'big':''}" data-code="${c}" data-kind="${k||''}"><span>${ic}</span>${l}</div>`).join('');
+  $('#tbtns').querySelectorAll('.tb').forEach(b=>{
+    b.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();const c=b.dataset.code,k=b.dataset.kind;
+      if(k==='hold'){keys[c]=true;b.classList.add('on')}else if(k==='toggle'){keys[c]=!keys[c];b.classList.toggle('on',keys[c])}else{b.classList.add('on');fireKey(c)}},{passive:false});
+    b.addEventListener('touchend',e=>{e.preventDefault();const c=b.dataset.code,k=b.dataset.kind;if(k==='hold'){keys[c]=false}if(k!=='toggle')b.classList.remove('on')},{passive:false})});
+  if(innerHeight>innerWidth){const h=$('#rotHint');h.style.display='block';setTimeout(()=>h.style.display='none',4500)}
+}
+$('#tpause').addEventListener('touchstart',e=>{e.preventDefault();fireKey('KeyP')},{passive:false});
+gl.addEventListener('touchstart',e=>{e.preventDefault();const a=act();if(a&&!a.dlg)a.paused=false;
+  for(const t of e.changedTouches){
+    if(t.clientX<innerWidth*.45&&TOUCH.stick===null){TOUCH.stick=t.identifier;TOUCH.sx=t.clientX;TOUCH.sy=t.clientY;const st=$('#stick');st.style.left=t.clientX+'px';st.style.top=t.clientY+'px';st.style.display='block';$('#knob').style.transform='translate(0,0)'}
+    else if(TOUCH.look===null){TOUCH.look=t.identifier;TOUCH.lx=t.clientX;TOUCH.ly=t.clientY}}},{passive:false});
+gl.addEventListener('touchmove',e=>{e.preventDefault();const a=act();
+  for(const t of e.changedTouches){
+    if(t.identifier===TOUCH.stick){let dx=t.clientX-TOUCH.sx,dy=t.clientY-TOUCH.sy;const d=Math.hypot(dx,dy),R=50;if(d>R){dx=dx/d*R;dy=dy/d*R}TOUCH.jx=dx/R;TOUCH.jy=dy/R;$('#knob').style.transform=`translate(${dx}px,${dy}px)`}
+    else if(t.identifier===TOUCH.look){if(a&&!a.dlg&&!a.paused){yaw-=(t.clientX-TOUCH.lx)*.0055*SET.sens;pitch=clamp(pitch-(t.clientY-TOUCH.ly)*.0045*SET.sens,-1.25,1.25)}TOUCH.lx=t.clientX;TOUCH.ly=t.clientY}}},{passive:false});
+const endTouch=e=>{for(const t of e.changedTouches){if(t.identifier===TOUCH.stick){TOUCH.stick=null;TOUCH.jx=TOUCH.jy=0;$('#stick').style.display='none'}if(t.identifier===TOUCH.look)TOUCH.look=null}};
+gl.addEventListener('touchend',endTouch);gl.addEventListener('touchcancel',endTouch);
 /* ----- 3D setup ----- */
 let R3=null;
 function canvasTex(w,h,draw,rep){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;if(rep)t.repeat.set(rep[0],rep[1]);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;return t}
@@ -950,8 +999,8 @@ function textSprite(t,col,h=.5,fog=true){
 const std=o=>new THREE.MeshStandardMaterial({roughness:.92,metalness:0,...o});
 function init3D(){
   if(R3)return;
-  const renderer=new THREE.WebGLRenderer({canvas:gl,antialias:true,powerPreference:'high-performance'});
-  renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;
+  const renderer=new THREE.WebGLRenderer({canvas:gl,antialias:!IS_TOUCH,powerPreference:'high-performance'});
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1,IS_TOUCH?1.25:1.5));renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;
   const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.05,140);camera.rotation.order='YXZ';
   const flash=new THREE.SpotLight(0xfff0d2,0,32,.52,.6,1.1);
   flash.position.set(.25,-.2,0);camera.add(flash);flash.target.position.set(0,-.35,-6);camera.add(flash.target);
@@ -1129,7 +1178,7 @@ function trapAct(type){
 /* ---------- the shelter (3D) ---------- */
 let HM=null;
 const HT=2.5,HW=8,HH=6,HWH=3.1;
-function stopHome(){if(HM&&HM.running){HM.running=false;stopDrone();unlock();gl.style.display='none';cv.style.display='none'}}
+function stopHome(){if(HM&&HM.running){HM.running=false;setTouch(null);stopDrone();unlock();gl.style.display='none';cv.style.display='none'}}
 function homeDlg(h,wide){if(HM){HM.dlg=true}for(const k in keys)keys[k]=false;unlock();dlg(h);if(wide)$('#dlgbox').style.maxWidth='900px'}
 function homeClose(){closeDlg();PANEL=null;if(HM)HM.dlg=false}
 function homeMsg(t,d=2.6){if(HM){HM.msg=t;HM.msgT=d}}
@@ -1139,10 +1188,10 @@ function enterHome(){
   checkUnlock();init3D();
   if(!R3.lantern){R3.lantern=new THREE.PointLight(0xffb060,0,10,1.4);R3.lantern.position.set(-.3,-.3,.2);R3.camera.add(R3.lantern)}
   const old=HM,keep=old&&old.keepPos;
-  HM={running:true,px:keep?old.px:4*HT,pz:keep?old.pz:3.9*HT,t:0,last:performance.now(),bob:0,moving:false,msg:'',msgT:0,paused:false,dlg:false,npcs:[],stations:[],solid:new Set()};
+  HM={running:true,px:keep?old.px:4.5*HT,pz:keep?old.pz:4.7*HT,t:0,last:performance.now(),bob:0,moving:false,msg:'',msgT:0,paused:false,dlg:false,npcs:[],stations:[],solid:new Set()};
   if(!keep){yaw=0;pitch=0}
   ui.style.display='none';cv.style.display='block';gl.style.display='block';
-  buildHome();resizeCv();saveProgress();
+  buildHome();resizeCv();saveProgress();setTouch('home');
   G.logSeen=G.logSeen||0;
   if(G.log.length>G.logSeen){const fresh=G.log.slice(G.logSeen);G.logSeen=G.log.length;
     const morning=fresh.some(l=>l.cls==='day');
@@ -1217,6 +1266,40 @@ function buildHome(){
   box(1.5,2.4,.12,std({color:0x4a3220}),4*HT,1.2,D-.08);for(const r of[.5,-.5]){const b=box(1.9,.18,.06,plank,4*HT,1.2,D-.17);b.rotation.z=r}
   const strip=new THREE.Mesh(new THREE.PlaneGeometry(1.4,.04),new THREE.MeshBasicMaterial({color:0xa8b4bc}));strip.position.set(4*HT,.02,D-.15);strip.rotation.y=Math.PI;sc.add(strip);
   st('door',4*HT,D-.9,2.1);
+  // ---- lived-in shelter: boards everywhere, pantry, crates, sleeping mats
+  const nail=(x,y,z,w,rot,ry)=>{const b=box(w,.2,.06,plank,x,y,z);b.rotation.z=rot;b.rotation.y=ry||0;return b};
+  const boardWin=(x,z,ry)=>{const dz=ry===0?.05:ry===Math.PI?-.05:0,dx=ry===Math.PI/2?.05:ry===-Math.PI/2?-.05:0;
+    const back=new THREE.Mesh(new THREE.PlaneGeometry(1.4,1.1),new THREE.MeshBasicMaterial({color:0x6a747c}));back.position.set(x+dx*.4,1.7,z+dz*.4);back.rotation.y=ry;sc.add(back);
+    for(let k=0;k<4;k++){const b=box(1.7,.2,.06,plank,x+dx,1.25+k*.3,z+dz);b.rotation.y=ry;b.rotation.z=rnd(-.1,.1)}
+    const xb=box(1.9,.18,.06,plank,x+dx*1.6,1.7,z+dz*1.6);xb.rotation.y=ry;xb.rotation.z=.55};
+  boardWin(.02,4.3*HT,Math.PI/2);boardWin(1.6*HT,D-.02,Math.PI);boardWin(6.6*HT,D-.02,Math.PI);boardWin(W-.02,2.5*HT,-Math.PI/2);
+  for(const [x,y,z,ry] of[[3.6*HT,2.3,.05,0],[1.2*HT,.6,.05,0],[W-.05,2.4,5.5*HT,-Math.PI/2],[.05,2.5,2.6*HT,Math.PI/2],[5.2*HT,2.6,D-.05,Math.PI]]){const b=box(1.6,.18,.05,plank,x,y,z);b.rotation.y=ry;b.rotation.z=rnd(-.25,.25)}
+  // barricade around the front door: crates and sandbags
+  const crate=std({color:0x7a5a34}),sand=std({color:0x8a7a5a,roughness:1});
+  for(const [x,y,z,s2] of[[2.9*HT,.35,D-.5,.7],[2.9*HT,1.05,D-.5,.7],[5.1*HT,.35,D-.5,.7],[5.15*HT,1.0,D-.5,.6]]){const c2=box(s2,s2,s2,crate,x,y,z);c2.rotation.y=rnd(-.2,.2)}
+  for(let k=0;k<5;k++){const sb=box(.55,.2,.32,sand,3.3*HT+k*.5,.1,D-.32);sb.rotation.y=rnd(-.15,.15)}
+  // pantry rack in the south-west corner: food, water jugs and medicine, matching what you own
+  box(HT*1.8,2.0,.08,wood,1*HT,1.0,D-.06);for(const y of[.4,.95,1.5])box(HT*1.8,.05,.5,wood,1*HT,y,D-.32);for(const x of[.1*HT,1.9*HT])box(.06,2,.5,wood,x,1,D-.32);
+  const extraFood=Math.max(0,G.inv.food-24),extraWater=Math.max(0,G.inv.water-20);
+  const shelfRow=(geo,mat,n,y,max)=>{n=Math.min(n,max);if(!n)return;const im=new THREE.InstancedMesh(geo,mat,n),m4=new THREE.Matrix4();for(let i=0;i<n;i++){m4.makeTranslation(.25*HT+(i%Math.ceil(max/2))*(HT*1.5/Math.ceil(max/2)),y,D-.2-(i>=Math.ceil(max/2)?.22:0));im.setMatrixAt(i,m4)}sc.add(im)};
+  shelfRow(can,std({color:0x4a7a3a,metalness:.4,roughness:.5}),extraFood,.5,20);
+  shelfRow(new THREE.BoxGeometry(.28,.38,.2),new THREE.MeshStandardMaterial({color:0x8ac0e8,transparent:true,opacity:.7,roughness:.1}),Math.ceil(extraWater/2)+Math.min(G.inv.water,6),1.17,10);
+  if(G.inv.meds>0){box(.42,.28,.28,std({color:0xf2f2f2}),1.6*HT,1.67,D-.3);box(.2,.06,.01,std({color:0xc02020}),1.6*HT,1.69,D-.445);box(.06,.2,.01,std({color:0xc02020}),1.6*HT,1.69,D-.445)}
+  const boxes=std({color:0xa8865a});for(let k=0;k<3;k++)box(.45,.32,.35,boxes,.5*HT+k*.55,1.69,D-.3);
+  solidT(0,5);solidT(1,5);
+  // stacked supply crates in the north-east corner under the window
+  for(const [x,y,z,s2] of[[6.1*HT,.3,.45,.6],[6.1*HT,.9,.45,.6],[6.55*HT,.3,.45,.6],[6.1*HT,1.42,.45,.45]]){const c2=box(s2,s2,s2,crate,x,y,z);c2.rotation.y=rnd(-.15,.15)}
+  solidT(6,0);
+  // sleeping mats for everyone you're looking after
+  const matCols=[0x4a5a7a,0x6a4a5a,0x5a6a4a,0x7a6a4a,0x4a6a6a,0x6a5a4a];
+  G.people.filter(p=>p.id!=='you').forEach((p,k)=>{const sp=[[1.4,4.6],[5.4,2.3],[1.6,2.4],[6,5.2],[4.5,1.7],[2.6,5.2]][k%6];
+    const mx=sp[0]*HT+(k%2?.9:-.9),mz=sp[1]*HT+.4;box(.75,.08,1.8,std({color:matCols[k%6]}),mx,.04,mz);box(.55,.1,.3,cloth,mx,.12,mz-.7);
+    const bl=box(.7,.04,1.0,std({color:0x8a3a3a}),mx,.1,mz+.3);bl.rotation.y=rnd(-.2,.2)});
+  // candles, empty tins, a bucket: signs of people living here
+  const wax=std({color:0xeeeadf}),flameM=new THREE.MeshBasicMaterial({color:0xffb050});
+  for(const [x,z] of[[2.7*HT,3.3*HT],[.9*HT,2.2*HT],[6.9*HT,2.6*HT]]){const y=z===3.3*HT?.82:0;box(.06,.16,.06,wax,x,y+.08,z);const fl2=new THREE.Mesh(new THREE.SphereGeometry(.025,6,4),flameM);fl2.scale.y=1.8;fl2.position.set(x,y+.2,z);sc.add(fl2);const cl=new THREE.PointLight(0xffa040,.9,4,1.8);cl.position.set(x,y+.35,z);sc.add(cl)}
+  for(let k=0;k<6;k++){const t2=new THREE.Mesh(can,std({color:0x8a8a8a,metalness:.6}));t2.position.set(4.6*HT+rnd(-.5,.5),.07,5.5*HT+rnd(-.3,.3));t2.rotation.z=Math.random()<.6?Math.PI/2:0;t2.rotation.y=rnd(0,6);sc.add(t2)}
+  const bucket=new THREE.Mesh(new THREE.CylinderGeometry(.2,.16,.32,12,1,true),std({color:0x6a6e74,metalness:.5,side:THREE.DoubleSide}));bucket.position.set(.6*HT,.16,3.3*HT);sc.add(bucket);
   // the people you're keeping alive
   const spots=[[1.4,4.6],[5.4,2.3],[1.6,2.4],[6,5.2],[4.5,1.7],[2.6,5.2]];
   G.people.filter(p=>p.id!=='you').forEach((p,k)=>{const i=G.people.indexOf(p),[sx,sz]=spots[k%spots.length];
@@ -1301,8 +1384,8 @@ function homeUpdate(dt){
   const mouseOn=locked(),f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),s2=mouseOn?(keys.KeyD?1:0)-(keys.KeyA?1:0):0;
   if(keys.ArrowLeft||(!mouseOn&&keys.KeyA))yaw+=2.4*dt;if(keys.ArrowRight||(!mouseOn&&keys.KeyD))yaw-=2.4*dt;
   const fx=-Math.sin(yaw),fz=-Math.cos(yaw),rx=Math.cos(yaw),rz=-Math.sin(yaw);
-  let mx=fx*f+rx*s2,mz=fz*f+rz*s2;const ml=Math.hypot(mx,mz);HM.moving=ml>0;
-  if(ml>0){mx/=ml;mz/=ml;const sp=keys.Space?4.2:2.8;const nx=HM.px+mx*sp*dt;if(!homeBlocked(nx,HM.pz))HM.px=nx;const nz=HM.pz+mz*sp*dt;if(!homeBlocked(HM.px,nz))HM.pz=nz;HM.bob+=dt*8}
+  const tj=touchMove();let mx=fx*(f+tj[0])+rx*(s2+tj[1]),mz=fz*(f+tj[0])+rz*(s2+tj[1]);const ml=Math.hypot(mx,mz);HM.moving=ml>0;
+  if(ml>0){mx/=ml;mz/=ml;const sp=keys.Space?4.2:2.8;const stuck=homeBlocked(HM.px,HM.pz);const nx=HM.px+mx*sp*dt;if(stuck||!homeBlocked(nx,HM.pz))HM.px=nx;const nz=HM.pz+mz*sp*dt;if(stuck||!homeBlocked(HM.px,nz))HM.pz=nz;HM.bob+=dt*8}
 }
 function homeRender(dt){
   const cam=R3.camera;cam.position.set(HM.px,1.6+(HM.moving?Math.sin(HM.bob)*.03:0),HM.pz);cam.rotation.set(pitch,yaw,0);
@@ -1315,7 +1398,7 @@ function homeRender(dt){
   R3.renderer.render(R3.scene,cam);
 }
 function homeHud(){
-  const W=innerWidth,H=innerHeight;cx.clearRect(0,0,W,H);
+  const W=innerWidth/HS(),H=innerHeight/HS();cx.clearRect(0,0,W,H);
   cx.fillStyle='rgba(255,255,255,.6)';cx.beginPath();cx.arc(W/2,H/2,2.2,0,7);cx.fill();
   const L=LOCS[G.start],fn=foodNeed(),wn=waterNeed();
   cx.textAlign='left';cx.textBaseline='top';cx.fillStyle='rgba(0,0,0,.55)';cx.fillRect(10,10,330,112);
@@ -1324,10 +1407,10 @@ function homeHud(){
   cx.fillStyle='#d9a441';cx.fillText(`⚡ Dig energy ${G.energy}`,20,62);
   cx.fillStyle=G.inv.food<fn||G.inv.water<wn?'#d24b43':'#dcd8cc';cx.fillText(`🍽️ Tonight: ${fn} food, ${wn} water (have ${G.inv.food} / ${G.inv.water})`,20,82);
   cx.fillStyle='#8a8676';cx.fillText(`🪤 Trap: ${['chains','battery','speaker','flood'].filter(k=>G.trap[k]).length}/4 parts · ${['cage','lure','light'].filter(k=>G.trap[k]).length}/3 built`,20,102);
-  const pr=homeLabel(homeTarget());
+  const pr=keyTxt(homeLabel(homeTarget()));
   if(pr){cx.textAlign='center';cx.font='16px Georgia';const w=cx.measureText(pr).width+30;cx.fillStyle='rgba(0,0,0,.65)';cx.fillRect(W/2-w/2,H-84,w,34);cx.fillStyle=pr[0]==='✖'?'#d24b43':'#d9a441';cx.fillText(pr,W/2,H-75)}
   if(HM.msgT>0){cx.textAlign='center';cx.font='18px Georgia';cx.fillStyle=`rgba(230,225,210,${Math.min(1,HM.msgT)})`;cx.fillText(HM.msg,W/2,H*.2)}
-  cx.textAlign='left';cx.fillStyle='rgba(140,135,120,.75)';cx.font='12px Georgia';cx.fillText((locked()?'Mouse look · WASD move':'W/S move · A/D turn · click for mouse')+' · E use · Tab overview · M mute',12,H-22);
+  cx.textAlign='left';cx.fillStyle='rgba(140,135,120,.75)';cx.font='12px Georgia';if(!IS_TOUCH)cx.fillText((locked()?'Mouse look · WASD move':'W/S move · A/D turn · click for mouse')+' · E use · Tab overview · M mute',12,H-22);
   if(HM.paused){cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(0,0,W,H);cx.fillStyle='#fff';cx.textAlign='center';cx.font='40px Georgia';cx.fillText('PAUSED',W/2,H/2-30)}
 }
 function torchFlash(){
@@ -1627,12 +1710,12 @@ function startScav(id,day){
     S.trapM={phase:'place',cx:10.5*T,cy:25*T,x0:8*T,x1:13*T,y0:23.5*T,y1:26.5*T,lx:19.5*T,ly:27.6*T,lureT:0,cageY:3,dropped:false};S.cre.dormant=35}
   yaw=tun?Math.random()*6.28:0;pitch=0;
   ui.style.display='none';cv.style.display='block';gl.style.display='block';
-  build3D();resizeCv();
+  build3D();resizeCv();setTouch('scav');
   showMsg(tun?'You climb up through the basement hatch. It\'s quiet down here... for now.':day?`You walk through the deserted streets to the ${LOCS[id].name.toLowerCase()}. Nothing moves. Nothing.`:`You slip out into the night towards the ${LOCS[id].name.toLowerCase()}.`,4.5);
   startDrone();
   S.last=performance.now();requestAnimationFrame(scavLoop);
 }
-function stopScav(){if(S&&S.running){S.running=false;stopDrone()}unlock();gl.style.display='none'}
+function stopScav(){if(S&&S.running){S.running=false;stopDrone()}setTouch(null);unlock();gl.style.display='none'}
 function showMsg(t,d=2.5){S.msg=t;S.msgT=d}
 const tileIdx=(x,y)=>clamp(Math.floor(y/T),0,MH-1)*MW+clamp(Math.floor(x/T),0,MW-1);
 function tileAt(x,y){const tx=Math.floor(x/T),ty=Math.floor(y/T);if(tx<0||ty<0||tx>=MW||ty>=MH)return 2;return S.m[ty*MW+tx]}
@@ -1783,15 +1866,15 @@ function updScav(dt){
   const mouseOn=locked(),f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),s=mouseOn?(keys.KeyD?1:0)-(keys.KeyA?1:0):0;
   if(keys.ArrowLeft||(!mouseOn&&keys.KeyA))yaw+=2.4*dt;if(keys.ArrowRight||(!mouseOn&&keys.KeyD))yaw-=2.4*dt;
   const fx=-Math.sin(yaw),fz=-Math.cos(yaw),rx=Math.cos(yaw),rz=-Math.sin(yaw);
-  let mx=fx*f+rx*s,my=fz*f+rz*s;const ml=Math.hypot(mx,my);
+  const tj=touchMove();let mx=fx*(f+tj[0])+rx*(s+tj[1]),my=fz*(f+tj[0])+rz*(s+tj[1]);const ml=Math.hypot(mx,my);
   const sneak=keys.ShiftLeft||keys.ShiftRight,run=keys.Space&&!sneak;
   S.mode=sneak?'sneak':run?'run':'walk';S.moving=false;
   if(S.hidden){/* frozen */}
   else if(ml>0){
     if(S.search){S.search=null;showMsg('Search interrupted.',1)}
     mx/=ml;my/=ml;const sp=sneak?62:run?195:112;
-    const nx=S.px+mx*sp*dt;if(!blocked(nx,S.py,9))S.px=nx;
-    const ny=S.py+my*sp*dt;if(!blocked(S.px,ny,9))S.py=ny;
+    const stuck=blocked(S.px,S.py,9);const nx=S.px+mx*sp*dt;if(stuck||!blocked(nx,S.py,9))S.px=nx;
+    const ny=S.py+my*sp*dt;if(stuck||!blocked(S.px,ny,9))S.py=ny;
     S.moving=true;S.bob+=dt*(sneak?5:run?13:8.5);
     S.noiseT-=dt;
     if(S.noiseT<=0){S.noiseT=sneak?.7:.42;let r=sneak?28:run?270:105;if(S.follower)r*=1.3;noise(S.px,S.py,r);
@@ -1893,7 +1976,7 @@ function render3D(dt){
 function relAngle(tx,ty){const a=Math.atan2(ty-S.py,tx-S.px),fa=Math.atan2(-Math.cos(yaw),-Math.sin(yaw));return a-fa}
 function arrow(x,y,ang,col,size=12){cx.save();cx.translate(x,y);cx.rotate(ang);cx.fillStyle=col;cx.beginPath();cx.moveTo(0,-size);cx.lineTo(size*.7,size*.6);cx.lineTo(-size*.7,size*.6);cx.closePath();cx.fill();cx.restore()}
 function hudScav(){
-  const W=innerWidth,H=innerHeight;cx.clearRect(0,0,W,H);
+  const W=innerWidth/HS(),H=innerHeight/HS();cx.clearRect(0,0,W,H);
   const c=S.cre,pd=Math.hypot(c.x-S.px,c.y-S.py);
   if(S.hidden){
     if(!S.hidden.car){cx.fillStyle='rgba(10,6,3,.95)';for(let y=0;y<H;y+=44)cx.fillRect(0,y,W,30)}
@@ -1959,11 +2042,11 @@ function hudScav(){
   // search bar
   if(S.search){const s=S.search;cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(W/2-80,H/2+30,160,10);cx.fillStyle='#d9a441';cx.fillRect(W/2-78,H/2+32,156*s.t/s.dur,6)}
   // prompt
-  const pr=promptText();
+  const pr=keyTxt(promptText());
   if(pr){cx.textAlign='center';cx.font='16px Georgia';const w=cx.measureText(pr).width+30;cx.fillStyle='rgba(0,0,0,.65)';cx.fillRect(W/2-w/2,H-80,w,34);cx.fillStyle='#d9a441';cx.textBaseline='top';cx.fillText(pr,W/2,H-71)}
   if(S.msgT>0){cx.textAlign='center';cx.textBaseline='top';cx.font='18px Georgia';cx.fillStyle=`rgba(230,225,210,${Math.min(1,S.msgT)})`;cx.fillText(S.msg,W/2,H*.2)}
-  cx.textAlign='left';cx.textBaseline='top';cx.fillStyle='rgba(140,135,120,.75)';cx.font='12px Georgia';cx.fillText((locked()?'Mouse look · WASD move':'W/S move · A/D turn')+' · Shift sneak · Space sprint · E interact · F torch flash · P pause · M mute',12,H-22);
-  if(!locked()&&!S.paused&&!S.dlg&&S.t<8){cx.textAlign='center';cx.font='16px Georgia';cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(W/2-230,H/2-64,460,34);cx.fillStyle='#fff';cx.fillText('🖱️ Click to use the mouse  ·  or turn with A / D',W/2,H/2-56)}
+  cx.textAlign='left';cx.textBaseline='top';cx.fillStyle='rgba(140,135,120,.75)';cx.font='12px Georgia';if(!IS_TOUCH)cx.fillText((locked()?'Mouse look · WASD move':'W/S move · A/D turn')+' · Shift sneak · Space sprint · E interact · F torch flash · P pause · M mute',12,H-22);
+  if(!IS_TOUCH&&!locked()&&!S.paused&&!S.dlg&&S.t<8){cx.textAlign='center';cx.font='16px Georgia';cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(W/2-230,H/2-64,460,34);cx.fillStyle='#fff';cx.fillText('🖱️ Click to use the mouse  ·  or turn with A / D',W/2,H/2-56)}
   if(S.paused){cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(0,0,W,H);cx.fillStyle='#fff';cx.textAlign='center';cx.font='40px Georgia';cx.fillText('PAUSED',W/2,H/2-30);cx.font='16px Georgia';cx.fillStyle='#8a8676';cx.fillText('click to continue',W/2,H/2+24)}
 }
 function promptText(){
