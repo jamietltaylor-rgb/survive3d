@@ -158,7 +158,35 @@ const FILES=[
   "PROJECT LISTENER: Containment failure. It has learned to copy voices. If someone knocks and asks to be let in, DO NOT assume it is a person.",
   "PROJECT LISTENER: Subject L (child, 9) was the only one it never harmed. It goes calm around him. Keep L away from the facility. Keep L safe."
 ];
-const RADIO=["📻 Static... \"...anyone hearing this, stay inside. Stay quiet...\"","📻 \"...rescue helicopters are being prepared. Hold on until day 20...\"","📻 \"...do not open your door at night. Whatever you hear...\"","📻 \"...it hunts by sound. Silence is your only weapon...\"","📻 \"...evacuation from the old church car park, day 20...\""];
+const RADIO=["📻 Static... \"...anyone hearing this, stay inside. Stay quiet...\"","📻 \"...rescue helicopters can\'t land while that thing is out there...\"","📻 \"...do not open your door at night. Whatever you hear...\"","📻 \"...it hunts by sound. Silence is your only weapon...\"","📻 \"...evacuation will begin the moment it\'s been dealt with...\""];
+/* ----- places further across the city (unlock as you loot) + the trap ----- */
+Object.assign(LOCS,{
+  factory:{name:'Ironworks Factory',ic:'🏭',loot:{metal:5,poles:3,planks:2},far:true},
+  petrol:{name:'Petrol Station',ic:'⛽',loot:{food:4,water:4,metal:1},far:true},
+  radio:{name:'City Radio 98.4',ic:'📡',loot:{water:2,food:2,metal:2,meds:1},far:true},
+  firestation:{name:'Fire Station',ic:'🚒',loot:{water:4,poles:2,metal:2,meds:2},far:true},
+  hospital:{name:"St Anne's Hospital",ic:'🏥',loot:{meds:7,water:3,food:2},far:true},
+  police:{name:'Police Station',ic:'🚓',loot:{metal:3,food:2,water:2,meds:2},far:true},
+  trapsite:{name:'Town Square',ic:'🪤',loot:{food:1},hidden:true},
+});
+const BATCHES=[['factory','petrol'],['radio','firestation'],['hospital','police']];
+const KEYITEMS={factory:'chains',petrol:'battery',radio:'speaker',firestation:'flood'};
+const PARTS={chains:{n:'Heavy chains',ic:'⛓️',d:'Thick steel chains, still coiled on a pallet. Strong enough to hold a cage shut.'},
+  battery:{n:'Car battery',ic:'🔋',d:'A heavy car battery. Enough power to run a loudspeaker all night.'},
+  speaker:{n:'Loudspeaker',ic:'📢',d:'A big outdoor loudspeaker from the studio roof. Loud enough to call it from across the city.'},
+  flood:{n:'Floodlight',ic:'🔦',d:'A portable floodlight. Its light should keep it pinned down once the cage drops.'}};
+const RECIPES=[
+  {id:'cage',n:'The cage',ic:'🪤',parts:['chains'],mat:{metal:6,poles:4},d:'A heavy steel cage, rigged on a frame so it can drop.'},
+  {id:'lure',n:'The lure',ic:'📢',parts:['speaker','battery'],mat:{},d:'A loudspeaker wired to a car battery, blaring noise to call it in.'},
+  {id:'light',n:'The floodlight rig',ic:'🔦',parts:['flood'],mat:{metal:2},d:'A floodlight on a pole. Once the cage drops, the light keeps it pinned so it can\'t break out.'}];
+const trapReady=()=>!!(G.trap&&G.trap.cage&&G.trap.lure&&G.trap.light);
+function checkUnlock(){
+  G.batch=G.batch||0;if(G.batch>=BATCHES.length)return;
+  const avail=Object.keys(G.locs).filter(k=>!G.locs[k].hidden);
+  if(!avail.every(k=>G.locs[k].visits>=1))return;
+  const b=BATCHES[G.batch++];for(const id of b)G.locs[id]={visits:0,surv:null,file:false,tunnel:false,bonus:false,far:true};
+  addLog(`📻 "...if anyone can hear this: the ${b.map(id=>LOCS[id].name).join(' and the ')}, across the city, haven't been touched. There could still be supplies..." (New places to search!)`);
+}
 const ENDINGS={
   everyone:{t:'Everyone Made It',ic:'🚁'},rescued:{t:'Rescue',ic:'🚁'},hard:{t:'The Hard Choice',ic:'💔'},alone:{t:'Alone',ic:'🥀'},
   underground:{t:'The Underground',ic:'🚇'},sewers:{t:'The Sewers',ic:'🌊'},truth:{t:'The Truth',ic:'🌫️'},betrayed:{t:'Betrayed',ic:'🚪'},
@@ -181,9 +209,9 @@ function newGame(startId){
   if(startId==='random')startId=pick(Object.keys(STARTS));
   const S0=STARTS[startId];
   G={day:1,max:20,start:startId,inv:{...S0.inv},tools:{shovel:!!S0.tools,pickaxe:!!S0.tools},people:[mkPerson('you')],
-     energy:0,dirt:0,acted:false,log:[],files:0,locs:{},rescued:0,deaths:[],lost:0,left:0,dexBetrayed:false,strangerN:0,
+     energy:0,dirt:0,acted:false,log:[],batch:0,logSeen:0,trap:{chains:false,battery:false,speaker:false,flood:false,cage:false,lure:false,light:false},files:0,locs:{},rescued:0,deaths:[],lost:0,left:0,dexBetrayed:false,strangerN:0,
      storm:false,sewer:false,radio:0,tmsg:''};
-  for(const id in LOCS){if(id===startId)continue;G.locs[id]={visits:0,surv:LOCS[id].surv||null,file:!!LOCS[id].file,tunnel:false,bonus:false}}
+  for(const id in LOCS){if(id===startId||LOCS[id].far||LOCS[id].hidden)continue;G.locs[id]={visits:0,surv:LOCS[id].surv||null,file:!!LOCS[id].file,tunnel:false,bonus:false}}
   const sv=LOCS[startId].surv;
   if(sv){const free=Object.keys(G.locs).filter(k=>!G.locs[k].surv);G.locs[pick(free)].surv=sv}
   if(LOCS[startId].file){const free=Object.keys(G.locs).filter(k=>!G.locs[k].file);G.locs[pick(free)].file=true}
@@ -191,7 +219,7 @@ function newGame(startId){
   G.tunnel=genTunnel();
   resetEnergy();
   addLog('— Day 1 —','day');
-  addLog(`You barricade yourself inside the ${LOCS[startId].name.toLowerCase()}. Outside, something is listening. Rescue is coming on day 20, so survive until then.`);
+  addLog(`You barricade yourself inside the ${LOCS[startId].name.toLowerCase()}. Outside, something is listening. No one is coming to save you while it's out there.`);
   addLog('Tip: go scavenging for supplies, or dig tunnels from your basement to reach other buildings without going outside.');
   dayScreen();
 }
@@ -201,8 +229,8 @@ const waterNeed=()=>G.people.reduce((s,p)=>s+(p.drink?1:0),0);
 function invHTML(){return['food','water','meds','planks','metal','poles'].map(k=>`<span title="${INAME[k]}">${ITEMS[k]} ${G.inv[k]}</span>`).join('')+(G.tools.shovel?'<span title="shovel">🪏</span>':'')+(G.tools.pickaxe?'<span title="pickaxe">⛏️</span>':'')}
 
 /* ---------- screens ---------- */
-function show(h){stopScav();stopTunnel();ui.innerHTML=h;ui.style.display='flex';cv.style.display='none';ui.scrollTop=0}
-function dlg(h){$('#dlgbox').innerHTML=h;$('#dlg').style.display='flex'}
+function show(h){stopScav();stopTunnel();stopHome();ui.innerHTML=h;ui.style.display='flex';cv.style.display='none';ui.scrollTop=0}
+function dlg(h){$('#dlgbox').style.maxWidth='';$('#dlgbox').innerHTML=h;$('#dlg').style.display='flex'}
 function closeDlg(){$('#dlg').style.display='none'}
 
 /* ---------- accounts & saving ---------- */
@@ -290,12 +318,13 @@ function newRunAsk(){
 }
 function titleScreen(){
   const got=gotEndings(),sv=loadLocal(),hasRun=sv&&sv.game;
-  show(`<div class="wrap"><h1>THE QUIET OUTSIDE</h1><div class="center" style="letter-spacing:.6em;color:#d24b43;font-size:20px;margin:-4px 0 14px">3D</div><div class="tag">Something is out there. It hunts by sound.<br>Survive 20 days.</div>
+  show(`<div class="wrap"><h1>THE QUIET OUTSIDE</h1><div class="center" style="letter-spacing:.6em;color:#d24b43;font-size:20px;margin:-4px 0 14px">3D</div><div class="tag">Something is out there. It hunts by sound.<br>Survive. Then find a way to trap it.</div>
   <div class="center">${hasRun?`<button class="btn big amber" onclick="continueGame()">CONTINUE · Day ${sv.game.day}</button><br>`:''}<button class="btn big" onclick="newRunAsk()">${hasRun?'NEW GAME':'BEGIN'}</button><br><button class="btn" style="margin-top:8px" onclick="settingsDlg()">⚙️ Settings</button></div>
   <div id="acct" class="center small" style="margin-top:18px;line-height:1.9">${acctHTML()}</div>
   <div class="center dim small" style="margin-top:10px">Endings found: ${got.length} / ${Object.keys(ENDINGS).length}</div>
   <div class="how">
-  <p><b>Each day</b> you choose: go out scavenging, dig tunnels, or rest. At night everyone needs food and water.</p>
+  <p><b>Your shelter</b> is a 3D room: walk up to things and press <kbd>E</kbd>. The <b>door</b> takes you out scavenging, the <b>hatch</b> goes down to your tunnels, the <b>table</b> plans tonight's food and water, the <b>bed</b> ends the day, and the <b>radio</b>, <b>notice board</b> and <b>workbench</b> help you with the plan. <kbd>Tab</kbd> opens an overview.</p>
+  <p><b>The goal:</b> nobody can rescue you while it's out there. Find the four trap parts, build a cage, a lure and a floodlight, then trap it in the Town Square. Once you've searched everywhere nearby, new places open up across the city.</p>
   <p><b>Moving (3D, first person):</b> <kbd>W</kbd>/<kbd>S</kbd> move, <kbd>A</kbd>/<kbd>D</kbd> turn (no mouse needed), or click the screen to look with the <kbd>mouse</kbd> (then A/D step sideways) · hold <kbd>Shift</kbd> to sneak · hold <kbd>Space</kbd> to sprint · <kbd>E</kbd> search / hide / talk / dig · <kbd>M</kbd> mute.</p>
   <p><b>Outside:</b> your torch only lights what's in front of you. The <b>radar</b> at the top of the screen shows the creature as a red blip each time the sweep passes it. Every sound you make spreads across the floor as a ring. If it reaches the creature, it comes. Hide in wardrobes and cars.</p>
   <p><b>Not everyone is who they seem.</b> Sometimes the creature pretends to be a survivor calling for help. Talk to them and look at them closely. If something's wrong, shine your torch in their eyes (<kbd>F</kbd>) and it will flee for a while. A torch flash in the creature's eyes also scares it off briefly.</p>
@@ -321,21 +350,25 @@ function personCard(p,i){
   return `<div class="card"><div class="row"><span class="ic">${p.ic}</span><div><b>${p.name}</b><div class="dim small">${p.role}${p.injured?' · <span class="red">wounded, needs medicine</span>':''}</div></div></div>
   <div class="bar"><i style="width:${clamp(p.hp,0,100)}%;background:${c}"></i></div>
   <div class="small">${Math.ceil(p.hp)} HP · ${hungerTxt(p)} · ${thirstTxt(p)}</div>
-  <div style="margin-top:6px"><label><input type="checkbox" ${p.eat?'checked':''} onchange="G.people[${i}].eat=this.checked;dayScreen()"> Eat${p.id==='tom'?' (2)':''}</label>
-  <label><input type="checkbox" ${p.drink?'checked':''} onchange="G.people[${i}].drink=this.checked;dayScreen()"> Drink</label></div>
+  <div style="margin-top:6px"><label><input type="checkbox" ${p.eat?'checked':''} onchange="G.people[${i}].eat=this.checked;refreshPanel()"> Eat${p.id==='tom'?' (2)':''}</label>
+  <label><input type="checkbox" ${p.drink?'checked':''} onchange="G.people[${i}].drink=this.checked;refreshPanel()"> Drink</label></div>
   ${G.inv.meds>0&&(p.hp<100||p.injured)?`<button class="mini" onclick="useMed(${i})">💊 Give medicine</button>`:''}
   ${SURV[p.id]?`<div class="dim small" style="margin-top:6px">${SURV[p.id].desc}</div>`:''}</div>`;
 }
-function dayScreen(){
-  updateTunnelLinks();
+let PANEL=null;
+function dayScreen(){enterHome()}
+function refreshPanel(){if(PANEL==='overview')return overviewScreen();if(PANEL==='rations')return rationsDlg();if(PANEL&&PANEL.startsWith('person:'))return personDlg(+PANEL.slice(7));enterHome()}
+function overviewScreen(){
+  stopHome();PANEL='overview';updateTunnelLinks();
   const L=LOCS[G.start],s=ST();
   const fn=foodNeed(),wn=waterNeed();
-  let h=`<div class="wrap"><div class="top"><div><div class="dim">${L.ic} ${L.name}, your shelter</div><h2>Day ${G.day} <span class="dim">/ ${G.max}</span></h2></div><div class="inv">${invHTML()}</div></div>`;
+  let h=`<div class="wrap"><div class="top"><div><div class="dim">${L.ic} ${L.name}, your shelter</div><h2>Day ${G.day}</h2></div><div class="inv">${invHTML()}</div></div>`;
   if(G.storm)h+=`<div class="warn">⛈️ A storm is raging. It's too dangerous to go outside today, but you can still dig.</div>`;
   h+=`<div class="log" id="log">${G.log.slice(-14).map(l=>`<p class="${l.cls||''}">${l.t}</p>`).join('')}</div>`;
   h+=`<h3>Your group (${G.people.length}/${s.cap})</h3><div class="grid">${G.people.map(personCard).join('')}</div>`;
   h+=`<div class="need">Tonight: <b>${fn}</b> food and <b>${wn}</b> water for everyone ticked. You have <b class="${G.inv.food<fn?'red':''}">${G.inv.food}</b> food and <b class="${G.inv.water<wn?'red':''}">${G.inv.water}</b> water.</div>`;
   h+=`<h3>What now?</h3><div>
+    <button class="btn amber" onclick="PANEL=null;enterHome()">🏠 Back into the shelter</button>
     <button class="btn" ${G.acted||G.storm?'disabled':''} onclick="pickLoc()">🔦 Go scavenging</button>
     <button class="btn" onclick="tunnelScreen()">🕳️ Go down to the tunnels (${G.energy} energy)</button>
     <button class="btn" ${G.acted?'disabled':''} onclick="rest()">💤 Rest (+25 HP for you)</button>
@@ -348,17 +381,20 @@ function dayScreen(){
   const lg=$('#log');if(lg)lg.scrollTop=lg.scrollHeight;
   saveProgress();
 }
-function useMed(i){const p=G.people[i];if(G.inv.meds<=0)return;G.inv.meds--;p.hp=Math.min(100,p.hp+40);if(p.injured){p.injured=false;addLog(`💊 You treated ${p.name}'s wound.`)}tone(660,.2,'sine',.05,1.5);dayScreen()}
+function useMed(i){const p=G.people[i];if(G.inv.meds<=0)return;G.inv.meds--;p.hp=Math.min(100,p.hp+40);if(p.injured){p.injured=false;addLog(`💊 You treated ${p.name}'s wound.`)}tone(660,.2,'sine',.05,1.5);refreshPanel()}
 function rest(){G.acted=true;const y=you();y.hp=Math.min(100,y.hp+25);addLog('💤 You rested and got some strength back (+25 HP).');dayScreen()}
 function sewerAsk(){dlg(`<div class="ic">🌊</div><p>The tunnel has broken into the old storm sewers. They run under the whole city and out past the edge of town.</p><p>Leave now with everyone in your group?</p><button class="btn red" onclick="closeDlg();finish('sewers')">Go into the dark</button><button class="btn" onclick="closeDlg()">Not yet</button>`)}
 
 function pickLoc(){
   let h=`<div class="wrap"><div class="top"><h2>Where will you go?</h2><button class="btn" onclick="dayScreen()">← Back</button></div><p class="dim">Places you've raided before have less left. Places linked by tunnel are much safer, because you come up from below.</p><div class="grid">`;
-  for(const id in G.locs){const l=G.locs[id],L=LOCS[id];
+  checkUnlock();
+  if(trapReady())h+=`<div class="card click" style="border-color:#7a2a25;background:#2a1513;grid-column:1/-1" onclick="timeAsk('trapsite')"><div class="row"><span class="ic">🪤</span><b style="font-size:19px">Set the trap in the Town Square</b></div><div class="small">The cage, the lure and the floodlight are ready. Set it all up, switch on the lure, and drop the cage when it walks in.</div></div>`;
+  for(const id in G.locs){const l=G.locs[id],L=LOCS[id];if(l.hidden)continue;
     const loot=Object.keys(L.loot).filter(k=>!['shovel','pickaxe'].includes(k)).map(k=>ITEMS[k]).join(' ');
     h+=`<div class="card click" onclick="timeAsk('${id}')"><div class="row"><span class="ic">${L.ic}</span><b style="font-size:18px">${L.name}</b></div>
     <div class="small">Usually has: ${loot}</div>
     <div class="small dim">${l.visits===0?'Untouched':l.visits<3?`Raided ${l.visits}×`:'<span class="red">Picked almost clean</span>'}</div>
+    ${L.far?'<div class="small" style="color:#8fc8e8">🌆 Across the city: a long walk, so less time there</div>':''}${KEYITEMS[id]&&!G.trap[KEYITEMS[id]]?'<div class="small amber">🪤 Might have something for the trap</div>':''}
     ${l.tunnel?'<div class="small green">🕳️ Linked by tunnel. Safer entry, more time.</div>':''}
     ${l.surv?'<div class="small amber">👂 You\'ve heard someone calling from here</div>':''}
     ${l.bonus?'<div class="small green">📦 Supply crate dropped nearby!</div>':''}</div>`}
@@ -367,6 +403,7 @@ function pickLoc(){
 
 /* ---------- night ---------- */
 function endDay(){
+  if(HM&&HM.running)HM.dlg=true;
   const S0=ST(),lines=[];let youCause=null;
   for(const p of G.people){
     const fn=p.id==='tom'?2:1;
@@ -408,8 +445,8 @@ function endDay(){
     G.people=G.people.filter(q=>q!==p);G.deaths.push(p.name);lines.push(`🕯️ ${p.name} didn't make it through the night.`)}
   G.day++;G.acted=false;G.storm=false;G.tmsg='';
   updateTunnelLinks();resetEnergy();
-  if(G.day>G.max){G.log.push(...lines.map(t=>({t})));return finish()}
   addLog(`— Day ${G.day} —`,'day');lines.forEach(t=>addLog(t));
+  if(G.day===2)addLog('📻 A new voice on the radio: "...this is Dr. Hale, from Project Listener. It can\'t be killed. But it CAN be caged. You\'ll need heavy chains, a car battery, a loudspeaker and a floodlight. Build a cage, call it in with noise, drop the cage, and keep the light on it..." (Check the plan on your notice board.)');
   tone(220,1.2,'sine',.04,.5);
   // morning event
   if(G.day>=2&&Math.random()<.4)return morningEvent();
@@ -555,7 +592,7 @@ function tunTex(){
   return R3.ttex;
 }
 function startTunnel3D(){
-  closeDlg();updateTunnelLinks();init3D();
+  stopHome();closeDlg();updateTunnelLinks();init3D();
   if(!R3.lantern){R3.lantern=new THREE.PointLight(0xffb060,0,10,1.4);R3.lantern.position.set(-.3,-.3,.2);R3.camera.add(R3.lantern)}
   TU={running:true,px:2.5*TT,pz:6.5*TT,dig:null,msg:'',msgT:0,msgc:'',t:0,last:performance.now(),bob:0,moving:false,shake:0,dust:[],creakT:3,paused:false,dlg:false};
   yaw=-Math.PI/2;pitch=0;
@@ -864,6 +901,13 @@ function unlock(){try{if(locked())document.exitPointerLock()}catch(e){}}
 addEventListener('keydown',e=>{
   if(e.target&&e.target.tagName==='INPUT')return;
   keys[e.code]=true;
+  if(HM&&HM.running){if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab'].includes(e.code))e.preventDefault();
+    if(HM.dlg)return;
+    if(e.code==='KeyE'&&!e.repeat)homeInteract();
+    if(e.code==='Tab'&&!e.repeat){HM.keepPos=true;overviewScreen()}
+    if(e.code==='KeyP'&&!e.repeat){HM.paused=!HM.paused;if(HM.paused)unlock()}
+    if(e.code==='KeyM'&&!e.repeat){muted=!muted}
+    return}
   if(TU&&TU.running){if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
     if(e.code==='KeyE'&&!e.repeat)tunInteract();
     if(['Digit1','Digit2','Digit3'].includes(e.code)&&!e.repeat)tunBrace(['planks','metal','poles'][+e.code.slice(5)-1]);
@@ -879,7 +923,7 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyM'&&!e.repeat){muted=!muted;if(muted)stopDrone();else if(S&&S.running)startDrone()}
 });
 addEventListener('keyup',e=>keys[e.code]=false);
-const act=()=>(S&&S.running)?S:(TU&&TU.running)?TU:null;
+const act=()=>(S&&S.running)?S:(TU&&TU.running)?TU:(HM&&HM.running)?HM:null;
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;const a=act();if(a&&!a.dlg)a.paused=true});
 gl.addEventListener('click',()=>{const a=act();if(a&&!a.dlg){a.paused=false;try{gl.requestPointerLock()}catch(e){}}});
 document.addEventListener('mousemove',e=>{if(locked()&&act()&&!act().dlg&&!act().paused){yaw-=e.movementX*.0022;pitch=clamp(pitch-e.movementY*.0022,-1.25,1.25)}});
@@ -1031,6 +1075,260 @@ function npcTaken(){
   const n=S.surv;if(!n)return;const nm=SURV[n.id].name;scream();
   showMsg(`${nm} was taken by the creature.`,4);addLog(`🕯️ ${nm} was taken by the creature after you left them behind.`);G.lost++;
   S.surv=null;S.L.surv=null;dropModel('surv');const c=S.cre;c.state='investigate';c.tx=c.x;c.ty=c.y;c.wait=0;
+}
+function takeKey(){
+  const P=PARTS[S.key.item];G.trap[S.key.item]=true;if(R3.key){R3.scene.remove(R3.key);R3.key=null}S.key=null;
+  addLog(`${P.ic} You found the ${P.n.toLowerCase()}! That's a part for the trap.`);tone(520,.2,'sine',.05,1.5);
+  openDlg(`<div class="ic">${P.ic}</div><p class="dim small" style="letter-spacing:.15em">TRAP PART</p><p><b>${P.n}</b></p><p>${P.d}</p><p class="small dim">Take it home to your workbench.</p><button class="btn amber" onclick="closeScavDlg()">Take it</button>`);
+}
+/* ----- the trap mission ----- */
+function trapInZone(){const tm=S.trapM,c=S.cre;return !!tm&&!c.disguised&&c.x>tm.x0&&c.x<tm.x1&&c.y>tm.y0&&c.y<tm.y1}
+function buildTrapSite(sc){
+  const tm=S.trapM,X0=tm.x0*U,X1=tm.x1*U,Z0=tm.y0*U,Z1=tm.y1*U,H=4.4;
+  const steel=new THREE.MeshStandardMaterial({color:0x6a6e74,metalness:.7,roughness:.4}),rust=new THREE.MeshStandardMaterial({color:0x7a4a2a,metalness:.4,roughness:.7});
+  const add=(geo,m,x,y,z,g=sc)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);g.add(o);return o};
+  for(const [x,z] of[[X0-.3,Z0-.3],[X1+.3,Z0-.3],[X0-.3,Z1+.3],[X1+.3,Z1+.3]])add(new THREE.BoxGeometry(.25,H+3,.25),rust,x,(H+3)/2,z);
+  add(new THREE.BoxGeometry(X1-X0+.9,.3,.3),rust,(X0+X1)/2,H+3,Z0-.3);add(new THREE.BoxGeometry(X1-X0+.9,.3,.3),rust,(X0+X1)/2,H+3,Z1+.3);
+  const cage=new THREE.Group(),bar=new THREE.CylinderGeometry(.04,.04,2.6,6);
+  for(let x=X0;x<=X1+.01;x+=.45)for(const z of[Z0,Z1])add(bar,steel,x,1.3,z,cage);
+  for(let z=Z0;z<=Z1+.01;z+=.45)for(const x of[X0,X1])add(bar,steel,x,1.3,z,cage);
+  for(let x=X0;x<=X1+.01;x+=.45){const b=add(new THREE.CylinderGeometry(.04,.04,Z1-Z0,6),steel,x,2.6,(Z0+Z1)/2,cage);b.rotation.x=Math.PI/2}
+  for(let k=0;k<6;k++){const ch=add(new THREE.TorusGeometry(.08,.025,5,10),steel,(X0+X1)/2,2.7+k*.14,(Z0+Z1)/2,cage);ch.rotation.y=k*Math.PI/2}
+  cage.position.y=tm.cageY;sc.add(cage);R3.cage=cage;
+  for(const [x,z] of[[X0-.3,Z0-.3],[X1+.3,Z1+.3]]){const wl=new THREE.PointLight(0xffb060,9,16,1.4);wl.position.set(x,H+2.4,z);sc.add(wl);add(new THREE.BoxGeometry(.35,.25,.35),new THREE.MeshBasicMaterial({color:0xffd090}),x,H+2.7,z)}
+  const lure=new THREE.Group();add(new THREE.BoxGeometry(.5,.4,.35),new THREE.MeshStandardMaterial({color:0x1a1a1a}),0,.2,0,lure);
+  const cone=add(new THREE.CylinderGeometry(.12,.3,.3,12,1,true),new THREE.MeshStandardMaterial({color:0x3a3a3a,side:THREE.DoubleSide}),0,.62,0,lure);
+  const lamp=add(new THREE.SphereGeometry(.05,8,6),new THREE.MeshBasicMaterial({color:0xff3020}),.2,.45,.18,lure);lure.userData.lamp=lamp;
+  lure.position.set(tm.cx*U,0,tm.cy*U);lure.visible=false;sc.add(lure);R3.lure=lure;
+  const LX=tm.lx*U,LZ=tm.ly*U;add(new THREE.BoxGeometry(.5,1.1,.4),new THREE.MeshStandardMaterial({color:0x3a4a3a}),LX,.55,LZ);
+  const lever=add(new THREE.CylinderGeometry(.04,.04,.8,6),steel,LX,1.4,LZ);lever.rotation.z=.6;R3.lever=lever;
+  const gl2=add(new THREE.SphereGeometry(.08,8,6),new THREE.MeshBasicMaterial({color:0x40ff70}),LX,1.2,LZ-.22);
+  const glp=new THREE.PointLight(0x40ff70,2,6,1.6);glp.position.set(LX,1.5,LZ-.4);sc.add(glp);
+  add(new THREE.CylinderGeometry(.06,.08,5,8),steel,X1+2,2.5,Z1+1);const fh=add(new THREE.BoxGeometry(.6,.4,.3),new THREE.MeshBasicMaterial({color:0x555555}),X1+1.7,5,Z1+.8);R3.floodHead=fh;
+  const sp=new THREE.SpotLight(0xffffff,0,30,.6,.4,1);sp.position.set(X1+1.7,5,Z1+.8);sp.target.position.set((X0+X1)/2,0,(Z0+Z1)/2);sc.add(sp);sc.add(sp.target);R3.floodSpot=sp;
+}
+function renderTrap(dt){
+  const tm=S.trapM;if(!R3.cage)return;
+  if(tm.dropped&&tm.cageY>0){tm.cageY=Math.max(0,tm.cageY-dt*14);if(tm.cageY===0){hiss(.6,.35,500);tone(60,.8,'sawtooth',.12,.5);tm.landed=true}}
+  R3.cage.position.y=tm.cageY;
+  if(R3.lure&&R3.lure.visible)R3.lure.userData.lamp.visible=tm.phase!=='active'||Math.sin(S.t*12)>0;
+  if(R3.lever)R3.lever.rotation.z=tm.phase==='place'||tm.phase==='arm'?.6:-.6;
+  if(tm.phase==='won'&&R3.floodSpot){R3.floodSpot.intensity=120;R3.floodHead.material.color.set(0xffffff)}
+}
+function trapAct(type){
+  const tm=S.trapM,c=S.cre;
+  if(type==='tplace'){tm.phase='arm';R3.lure.visible=true;tone(300,.15,'square',.04);showMsg('The lure is in place. Now get to the lever and switch it on.',3);return}
+  if(tm.phase==='arm'){tm.phase='active';tm.lureT=0;c.dormant=0;showMsg('The lure BLARES into the street. It will have heard that...',3.5);return}
+  // drop the cage
+  tm.dropped=true;
+  if(trapInZone()){tm.phase='won';c.caged=true;c.state='investigate';scream();showMsg('GOT IT! The cage slams down and the floodlight pins it in place!',5);
+    setTimeout(()=>{if(S&&S.running){S.running=false;stopDrone();addLog('🪤 You trapped the creature in the Town Square.');finish('trapped')}},5000)}
+  else{tm.phase='failed';G.trap.cage=false;S.hunt=true;c.dormant=0;c.state='chase';scream();showMsg('The cage slams down on NOTHING. It\'s coming for you. RUN!',4)}
+}
+
+/* ---------- the shelter (3D) ---------- */
+let HM=null;
+const HT=2.5,HW=8,HH=6,HWH=3.1;
+function stopHome(){if(HM&&HM.running){HM.running=false;stopDrone();unlock();gl.style.display='none';cv.style.display='none'}}
+function homeDlg(h,wide){if(HM){HM.dlg=true}for(const k in keys)keys[k]=false;unlock();dlg(h);if(wide)$('#dlgbox').style.maxWidth='900px'}
+function homeClose(){closeDlg();PANEL=null;if(HM)HM.dlg=false}
+function homeMsg(t,d=2.6){if(HM){HM.msg=t;HM.msgT=d}}
+function enterHome(){
+  stopScav();stopTunnel();closeDlg();PANEL=null;updateTunnelLinks();
+  G.trap=G.trap||{chains:false,battery:false,speaker:false,flood:false,cage:false,lure:false,light:false};
+  checkUnlock();init3D();
+  if(!R3.lantern){R3.lantern=new THREE.PointLight(0xffb060,0,10,1.4);R3.lantern.position.set(-.3,-.3,.2);R3.camera.add(R3.lantern)}
+  const old=HM,keep=old&&old.keepPos;
+  HM={running:true,px:keep?old.px:4*HT,pz:keep?old.pz:3.9*HT,t:0,last:performance.now(),bob:0,moving:false,msg:'',msgT:0,paused:false,dlg:false,npcs:[],stations:[],solid:new Set()};
+  if(!keep){yaw=0;pitch=0}
+  ui.style.display='none';cv.style.display='block';gl.style.display='block';
+  buildHome();resizeCv();saveProgress();
+  G.logSeen=G.logSeen||0;
+  if(G.log.length>G.logSeen){const fresh=G.log.slice(G.logSeen);G.logSeen=G.log.length;
+    const morning=fresh.some(l=>l.cls==='day');
+    homeDlg(`<div class="ic">${morning?'☀️':'📓'}</div><h2 style="margin:0 0 10px">${morning?'Day '+G.day:'Back at the shelter'}</h2><div class="log" style="margin-top:0;max-height:300px">${fresh.filter(l=>l.cls!=='day').map(l=>`<p>${l.t}</p>`).join('')||'<p class="dim">A quiet night.</p>'}</div><button class="btn amber" style="margin-top:12px" onclick="homeClose()">Okay</button>`)}
+  else homeMsg('Walk up to things and press E to use them. Tab opens the overview.',4);
+  requestAnimationFrame(homeLoop);
+}
+function boardTex(){return canvasTex(256,160,(g,w,h)=>{
+  g.fillStyle='#8a6a42';g.fillRect(0,0,w,h);for(let i=0;i<500;i++){g.fillStyle=`rgba(${Math.random()<.5?40:200},${Math.random()<.5?25:150},10,.25)`;g.fillRect(Math.random()*w,Math.random()*h,2,2)}
+  g.strokeStyle='#4a3218';g.lineWidth=8;g.strokeRect(0,0,w,h);
+  g.fillStyle='#f2ead6';g.fillRect(14,12,108,136);g.fillStyle='#1a1a1a';g.font='bold 15px Georgia';g.fillText('THE PLAN',24,30);g.font='12px Georgia';
+  const rows=[['chains','⛓ chains'],['battery','🔋 battery'],['speaker','📢 speaker'],['flood','🔦 light'],['cage','cage built'],['lure','lure built'],['light','light rig']];
+  rows.forEach(([k,l],i)=>{g.fillStyle=G.trap[k]?'#2a7a3a':'#8a2a2a';g.fillText((G.trap[k]?'✓ ':'✗ ')+l,22,50+i*14)});
+  g.fillStyle='#e8e0c8';g.fillRect(136,18,104,70);g.strokeStyle='#555';g.lineWidth=1;for(let i=0;i<5;i++){g.beginPath();g.moveTo(144,32+i*11);g.lineTo(230,32+i*11);g.stroke()}
+  g.fillStyle='#d8d0a8';g.fillRect(150,98,86,52);g.fillStyle='#3a3a3a';g.fillRect(170,110,46,30);
+  g.strokeStyle='#b02020';g.lineWidth=2;g.beginPath();g.moveTo(68,150);g.lineTo(188,52);g.lineTo(193,124);g.stroke();
+  for(const [x,y] of[[68,14],[188,20],[193,100],[120,14]]){g.fillStyle='#c0302a';g.beginPath();g.arc(x,y,4,0,7);g.fill()}})}
+function buildHome(){
+  const th=THEMES[G.start]||THEMES.house;
+  if(R3.scene)disposeScene(R3.scene);
+  const sc=new THREE.Scene();sc.background=new THREE.Color(0x0a0908);sc.fog=new THREE.Fog(0x0a0908,16,34);
+  R3.scene=sc;sc.add(R3.camera);R3.flash.intensity=0;R3.lantern.intensity=0;
+  sc.add(new THREE.AmbientLight(0xffe8d0,.38));sc.add(new THREE.HemisphereLight(0xfff0e0,0x2a2018,.45));
+  const W=HW*HT,D=HH*HT,box=(w,h,d,m,x,y,z)=>{const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);b.position.set(x,y,z);sc.add(b);return b};
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(W,D),std({map:themeFloorTex(th,[HW,HH])}));fl.rotation.x=-Math.PI/2;fl.position.set(W/2,0,D/2);sc.add(fl);
+  const ce=new THREE.Mesh(new THREE.PlaneGeometry(W,D),std({map:themeCeilTex(th,[HW/2,HH/2])}));ce.rotation.x=Math.PI/2;ce.position.set(W/2,HWH,D/2);sc.add(ce);
+  const wt=themeWallTex(th);
+  const wall=(len,x,z,ry)=>{const t=wt.clone();t.needsUpdate=true;t.repeat.set(len/1.6,1);const m=new THREE.Mesh(new THREE.PlaneGeometry(len,HWH),std({map:t}));m.position.set(x,HWH/2,z);m.rotation.y=ry;sc.add(m)};
+  wall(W,W/2,0,0);wall(W,W/2,D,Math.PI);wall(D,0,D/2,Math.PI/2);wall(D,W,D/2,-Math.PI/2);
+  const wood=std({color:0x6a4a2c}),dark=std({color:0x2a2a2e}),metal=std({color:0x8a8e94,metalness:.6,roughness:.4}),cloth=std({color:0xe0d8c8}),blanket=std({color:0x5a3a3a}),plank=std({color:0x7a5a34});
+  const solidT=(x,z)=>HM.solid.add(x+','+z),st=(id,x,z,r)=>HM.stations.push({id,x,z,r});
+  // bed
+  box(HT*.85,.4,HT*1.9,wood,.5*HT,.2,HT);box(HT*.8,.2,HT*1.85,blanket,.5*HT,.5,HT);box(.8,.14,.45,cloth,.5*HT,.66,.3*HT);solidT(0,0);solidT(0,1);st('bed',.7*HT,HT,2.4);
+  // radio desk
+  box(HT*.9,.78,HT*.55,wood,2.5*HT,.39,.35*HT);box(.55,.32,.28,dark,2.5*HT,.94,.35*HT);
+  const dial=new THREE.Mesh(new THREE.PlaneGeometry(.3,.12),new THREE.MeshBasicMaterial({color:0xffa040}));dial.position.set(2.5*HT,.96,.35*HT+.145);sc.add(dial);HM.dial=dial;
+  const ant=box(.015,.6,.015,metal,2.5*HT+.2,1.35,.35*HT);ant.rotation.z=-.4;solidT(2,0);st('radio',2.5*HT,.9*HT,2.0);
+  // notice board
+  const nb=new THREE.Mesh(new THREE.PlaneGeometry(2.4,1.5),std({map:boardTex()}));nb.position.set(5*HT,1.7,.03);sc.add(nb);st('board',5*HT,.9*HT,2.2);
+  // boarded-up window
+  const wx=6.6*HT;const sky=new THREE.Mesh(new THREE.PlaneGeometry(1.6,1.2),new THREE.MeshBasicMaterial({color:0x8a949c}));sky.position.set(wx,1.7,.02);sc.add(sky);
+  for(let k=0;k<4;k++){const b=box(1.8,.22,.06,plank,wx,1.2+k*.32,.06);b.rotation.z=rnd(-.08,.08)}
+  const wl=new THREE.PointLight(0xc8d4e0,1.5,6,1.6);wl.position.set(wx,1.7,.6);sc.add(wl);
+  // supplies shelf: shows what you've actually got
+  box(.12,2.3,HT*1.8,wood,7.92*HT,1.15,HT);for(const y of[.45,.95,1.45,1.95])box(HT*.42,.05,HT*1.8,wood,7.75*HT,y,HT);
+  const can=new THREE.CylinderGeometry(.07,.07,.16,10),btl=new THREE.CylinderGeometry(.06,.06,.3,8),mbox=new THREE.BoxGeometry(.16,.1,.12);
+  const placeRow=(geo,mat,n,y,max)=>{n=Math.min(n,max);if(!n)return;const im=new THREE.InstancedMesh(geo,mat,n),m4=new THREE.Matrix4();for(let i=0;i<n;i++){const row=i%2,col=Math.floor(i/2);m4.makeTranslation(7.62*HT+row*.18,y,.25*HT+col*(HT*1.5/(max/2)));im.setMatrixAt(i,m4)}sc.add(im)};
+  placeRow(can,std({color:0xb8402a,metalness:.4,roughness:.5}),G.inv.food,.55,24);placeRow(btl,new THREE.MeshStandardMaterial({color:0x6aa8d8,transparent:true,opacity:.75,roughness:.1}),G.inv.water,1.12,20);placeRow(mbox,std({color:0xf0f0f0}),G.inv.meds,1.52,12);
+  for(let i=0;i<Math.min(G.inv.planks,10);i++)box(.12,.04,HT*1.4,plank,6.9*HT+i*.02,.02+i*.045,2.2*HT);
+  for(let i=0;i<Math.min(G.inv.metal,10);i++)box(.9,.02,.6,metal,6.6*HT,.02+i*.03,5.4*HT);
+  for(let i=0;i<Math.min(G.inv.poles,8);i++){const p=box(.05,2.2,.05,std({color:0xc9a227,metalness:.5}),7.85*HT,1.1,5.5*HT+i*.08);p.rotation.x=-.12}
+  solidT(7,0);solidT(7,1);st('shelf',7.1*HT,HT,2.4);
+  // workbench + trap parts on it
+  box(HT*.8,.08,HT*1.8,wood,7.5*HT,.95,4*HT);for(const [dx,dz] of[[-.8,-1.9],[.8,-1.9],[-.8,1.9],[.8,1.9]])box(.08,.92,.08,wood,7.5*HT+dx*.9,.46,4*HT+dz*.9);
+  box(.5,.06,.12,dark,7.4*HT,1.02,3.4*HT);box(.1,.25,.1,metal,7.55*HT,1.1,3.55*HT);
+  if(G.trap.chains)for(let k=0;k<5;k++){const t=new THREE.Mesh(new THREE.TorusGeometry(.07,.02,5,10),metal);t.position.set(7.4*HT,1.02,3.9*HT+k*.12);t.rotation.set(Math.PI/2,0,k%2*Math.PI/2);sc.add(t)}
+  if(G.trap.battery){box(.32,.24,.2,dark,7.55*HT,1.11,4.4*HT);box(.04,.05,.04,std({color:0xc02020}),7.5*HT,1.25,4.36*HT)}
+  if(G.trap.speaker){const sp=new THREE.Mesh(new THREE.CylinderGeometry(.1,.24,.28,12),dark);sp.rotation.z=Math.PI/2;sp.position.set(7.45*HT,1.15,4.8*HT);sc.add(sp)}
+  if(G.trap.flood){box(.4,.28,.22,dark,7.5*HT,1.13,3.0*HT);const fg=new THREE.Mesh(new THREE.PlaneGeometry(.34,.22),new THREE.MeshBasicMaterial({color:0xfff8e0}));fg.position.set(7.5*HT-.21,1.13,3.0*HT);fg.rotation.y=-Math.PI/2;sc.add(fg)}
+  if(G.trap.cage)for(let k=0;k<7;k++){const b=box(.05,2.4,.05,metal,6.75*HT,1.2,3.0*HT+k*.12);b.rotation.z=.18}
+  solidT(7,3);solidT(7,4);st('bench',7.1*HT,4*HT,2.4);
+  // table, chairs, lamp
+  box(HT*1.6,.07,HT*.9,wood,3*HT,.78,3.5*HT);for(const [dx,dz] of[[-1.8,-.9],[1.8,-.9],[-1.8,.9],[1.8,.9]])box(.07,.76,.07,wood,3*HT+dx,.38,3.5*HT+dz);
+  for(const [x,z] of[[2.2,3.5],[3.8,3.5]]){box(.45,.45,.45,wood,x*HT,.23,z*HT+(x<3?-.0:0));box(.45,.5,.06,wood,x*HT,.7,z*HT+(x<3?-.25:.25))}
+  for(let i=0;i<Math.min(3,G.inv.food);i++){const c2=new THREE.Mesh(can,std({color:0xb8402a}));c2.position.set(2.8*HT+i*.2,.9,3.4*HT);sc.add(c2)}
+  box(.18,.3,.18,dark,3.4*HT,.97,3.6*HT);const shade2=new THREE.Mesh(new THREE.ConeGeometry(.22,.2,12,1,true),new THREE.MeshBasicMaterial({color:0xffd8a0,side:THREE.DoubleSide}));shade2.position.set(3.4*HT,1.22,3.6*HT);sc.add(shade2);
+  const tl=new THREE.PointLight(0xffc880,5,14,1.5);tl.position.set(3.4*HT,1.5,3.6*HT);sc.add(tl);HM.lamp=tl;
+  solidT(2,3);solidT(3,3);st('table',3*HT,3.5*HT,2.7);
+  // hatch down to the basement
+  box(1.3,.05,1.3,plank,5.5*HT,.03,4.5*HT);const ring=new THREE.Mesh(new THREE.TorusGeometry(.08,.015,5,12),metal);ring.rotation.x=Math.PI/2;ring.position.set(5.5*HT,.07,4.5*HT);sc.add(ring);st('hatch',5.5*HT,4.5*HT,1.7);
+  // barricaded front door
+  box(1.5,2.4,.12,std({color:0x4a3220}),4*HT,1.2,D-.08);for(const r of[.5,-.5]){const b=box(1.9,.18,.06,plank,4*HT,1.2,D-.17);b.rotation.z=r}
+  const strip=new THREE.Mesh(new THREE.PlaneGeometry(1.4,.04),new THREE.MeshBasicMaterial({color:0xa8b4bc}));strip.position.set(4*HT,.02,D-.15);strip.rotation.y=Math.PI;sc.add(strip);
+  st('door',4*HT,D-.9,2.1);
+  // the people you're keeping alive
+  const spots=[[1.4,4.6],[5.4,2.3],[1.6,2.4],[6,5.2],[4.5,1.7],[2.6,5.2]];
+  G.people.filter(p=>p.id!=='you').forEach((p,k)=>{const i=G.people.indexOf(p),[sx,sz]=spots[k%spots.length];
+    let mdl;if(SURV[p.id])mdl=npcMesh(p.id);else{mdl=humanoid(0x5a6a5a);const tg=textSprite('🧑','#fff',.45);tg.position.y=2.2;mdl.add(tg)}
+    mdl.position.set(sx*HT,0,sz*HT);sc.add(mdl);HM.npcs.push({mdl,i,x:sx*HT,z:sz*HT})});
+}
+function homeBlocked(x,z){const r=.32,W=HW*HT,D=HH*HT;if(x<r||z<r||x>W-r||z>D-r)return true;
+  for(const [a,b] of[[-r,-r],[r,-r],[-r,r],[r,r]])if(HM.solid.has(Math.floor((x+a)/HT)+','+Math.floor((z+b)/HT)))return true;
+  for(const n of HM.npcs)if(Math.hypot(n.x-x,n.z-z)<.45)return true;return false}
+function homeTarget(){
+  const fx=-Math.sin(yaw),fz=-Math.cos(yaw);let best=null,bs=1e9;
+  const consider=(o,x,z,r)=>{const dx=x-HM.px,dz=z-HM.pz,d=Math.hypot(dx,dz);if(d>r)return;const dot=d>.3?(dx*fx+dz*fz)/d:1;if(dot<.15)return;const sc=d*(1.6-dot);if(sc<bs){bs=sc;best=o}};
+  for(const s2 of HM.stations)consider(s2,s2.x,s2.z,s2.r);
+  for(const n of HM.npcs)consider({id:'person',i:n.i},n.x,n.z,1.9);
+  return best;
+}
+function homeLabel(t){
+  if(!t)return'';
+  switch(t.id){
+    case'bed':return G.acted?'[E] Bed: sleep (end the day)':'[E] Bed: rest, or sleep to end the day';
+    case'table':return"[E] Table: plan tonight's food & water";
+    case'shelf':return'[E] Supplies: see what you have';
+    case'radio':return'[E] Radio: listen in / read your journal';
+    case'board':return'[E] The plan: how to trap it';
+    case'bench':return'[E] Workbench: build the trap';
+    case'hatch':return`[E] Climb down to the tunnels (⚡ ${G.energy} energy)`;
+    case'door':return G.storm?'✖ A storm is raging outside':G.acted?"✖ You've already been out today":trapReady()?'[E] Front door: go out (or set the trap!)':'[E] Front door: go out';
+    case'person':{const p=G.people[t.i];return p?`[E] Talk to ${p.name}`:''}
+  }return'';
+}
+function homeInteract(){
+  if(!HM||HM.dlg||HM.paused)return;const t=homeTarget();if(!t)return;
+  switch(t.id){
+    case'bed':return homeDlg(`<div class="ic">🛏️</div><h2 style="margin:0 0 8px">Your bed</h2><p class="small dim">Resting uses up today's trip. Sleeping ends the day: everyone eats and drinks what you planned at the table.</p>
+      <button class="btn" ${G.acted?'disabled':''} onclick="closeDlg();rest()">💤 Rest (+25 HP)</button><button class="btn amber" onclick="closeDlg();endDay()">🌙 Sleep (end the day)</button><button class="btn" onclick="homeClose()">Not yet</button>`);
+    case'table':return rationsDlg();
+    case'shelf':return suppliesDlg();
+    case'radio':return radioDlg();
+    case'board':return planDlg();
+    case'bench':return benchDlg();
+    case'hatch':stopHome();return tunnelScreen();
+    case'door':if(G.storm)return homeMsg('⛈️ A storm is raging out there. Far too dangerous today.');if(G.acted)return homeMsg("You've already been out today. Sleep, and go again tomorrow.");stopHome();return pickLoc();
+    case'person':return personDlg(t.i);
+  }
+}
+function rationsDlg(){PANEL='rations';const fn=foodNeed(),wn=waterNeed();
+  homeDlg(`<div class="ic">🍽️</div><h2 style="margin:0 0 6px">Tonight's food & water</h2><p>Needed tonight: <b>${fn}</b> food and <b>${wn}</b> water. You have <b class="${G.inv.food<fn?'red':''}">${G.inv.food}</b> food and <b class="${G.inv.water<wn?'red':''}">${G.inv.water}</b> water.</p><p class="small dim">Untick someone to save food, but they'll get weaker.</p>
+  <div class="grid">${G.people.map(personCard).join('')}</div><button class="btn amber" style="margin-top:12px" onclick="homeClose()">Done</button>`,true)}
+function personQuote(p){if(p.id==='dog')return'Biscuit thumps his tail on the floor and looks at you hopefully.';if(p.id==='you')return'You look tired.';if(p.injured)return'"It hurts... I really need medicine."';if(p.thirst>=1)return'"I\'m so thirsty..."';if(p.hunger>=1)return'"I haven\'t eaten properly in days."';if(p.hp<40)return'"I don\'t feel good."';
+  return pick(['"Did you hear that last night?"','"We\'re going to make it. Right?"','"Thanks for bringing me here."','"That cage plan... do you really think it\'ll work?"','"I keep hearing it. Even when it\'s quiet."'])}
+function personDlg(i){PANEL='person:'+i;const p=G.people[i];if(!p)return homeClose();
+  homeDlg(`<p style="font-style:italic">${personQuote(p)}</p><div class="grid" style="grid-template-columns:1fr">${personCard(p,i)}</div><button class="btn" style="margin-top:12px" onclick="homeClose()">Close</button>`)}
+function suppliesDlg(){const tools=(G.tools.shovel?'🪏 Shovel ':'')+(G.tools.pickaxe?'⛏️ Pickaxe':'')||'None yet';
+  const parts=Object.keys(PARTS).map(k=>`<span style="opacity:${G.trap[k]?1:.35}">${PARTS[k].ic} ${PARTS[k].n}${G.trap[k]?' ✓':''}</span>`).join(' &nbsp; ');
+  homeDlg(`<div class="ic">📦</div><h2 style="margin:0 0 10px">Your supplies</h2><div class="inv" style="justify-content:center">${invHTML()}</div><p style="margin-top:14px"><b>Tools:</b> ${tools}</p><p><b>Trap parts:</b><br>${parts}</p><p class="small dim">🪣 Dirt piled up from digging: ${G.dirt}/${dirtMax()} · Strange files: ${G.files}/3</p><button class="btn" onclick="homeClose()">Close</button>`)}
+function radioDlg(){const msg=RADIO[(G.radio||0)%RADIO.length];G.radio=(G.radio||0)+1;tone(800,.3,'sawtooth',.01,.5);hiss(.5,.04,3000);
+  homeDlg(`<div class="ic">📻</div><p><i>${msg}</i></p><h3>Your journal</h3><div class="log" style="margin-top:0;max-height:280px">${G.log.slice(-18).map(l=>`<p class="${l.cls||''}">${l.t}</p>`).join('')}</div><button class="btn" style="margin-top:10px" onclick="homeClose()">Switch it off</button>`,true);
+  setTimeout(()=>{const lg=document.querySelector('#dlgbox .log');if(lg)lg.scrollTop=lg.scrollHeight},30)}
+function planDlg(){
+  const where={chains:'factory',battery:'petrol',speaker:'radio',flood:'firestation'};
+  const row=(done,txt,hint)=>`<p style="margin:7px 0">${done?'<span class="green">✓</span>':'<span class="red">✗</span>'} ${txt}${hint&&!done?`<br><span class="small dim" style="margin-left:22px">${hint}</span>`:''}</p>`;
+  let h=`<div class="ic">📋</div><h2 style="margin:0 0 6px">The plan</h2><p class="small dim">Dr. Hale said it can't be killed, but it can be caged.</p>`;
+  for(const k in PARTS){const loc=where[k],known=!!G.locs[loc];h+=row(G.trap[k],`Find the ${PARTS[k].ic} ${PARTS[k].n.toLowerCase()}`,known?`Try the ${LOCS[loc].icon||LOCS[loc].ic} ${LOCS[loc].name}.`:'Somewhere further across the city. New places open up once you\'ve searched everywhere you can reach.')}
+  for(const r of RECIPES)h+=row(G.trap[r.id],`Build ${r.ic} ${r.n.toLowerCase()} at the workbench`);
+  h+=row(false,'Set the trap in the Town Square: put the lure in the cage, switch it on, and drop the cage when it walks in.',trapReady()?'Everything is ready. Go out the front door to set the trap.':'');
+  homeDlg(h+`<button class="btn" style="margin-top:8px" onclick="homeClose()">Close</button>`)}
+function benchDlg(){
+  let h=`<div class="ic">🔨</div><h2 style="margin:0 0 10px">Workbench</h2>`;
+  for(const r of RECIPES){const parts=r.parts.map(p=>`<span class="${G.trap[p]?'green':'red'}">${PARTS[p].ic} ${PARTS[p].n}</span>`),mats=Object.entries(r.mat).map(([k,v])=>`<span class="${G.inv[k]>=v?'green':'red'}">${v} ${ITEMS[k]}</span>`);
+    const can=!G.trap[r.id]&&r.parts.every(p=>G.trap[p])&&Object.entries(r.mat).every(([k,v])=>G.inv[k]>=v);
+    h+=`<div class="card" style="margin:8px 0;text-align:left"><b>${r.ic} ${r.n}</b> ${G.trap[r.id]?'<span class="green">✓ Built</span>':''}<div class="small dim">${r.d}</div>${G.trap[r.id]?'':`<div class="small" style="margin-top:6px">Needs: ${[...parts,...mats].join(' + ')}</div><button class="mini" ${can?'':'disabled style="opacity:.4"'} onclick="buildPart('${r.id}')">🔨 Build it</button>`}</div>`}
+  if(trapReady())h+=`<p class="amber">Everything's ready. Go out the front door to set the trap.</p>`;
+  homeDlg(h+`<button class="btn" onclick="homeClose()">Close</button>`)}
+function buildPart(id){const r=RECIPES.find(x=>x.id===id);if(!r||G.trap[id])return;for(const [k,v] of Object.entries(r.mat))G.inv[k]-=v;G.trap[id]=true;
+  addLog(`🔨 You built ${r.n.toLowerCase()}.`);G.logSeen=G.log.length;hiss(.3,.15,2000);tone(180,.15,'square',.06);setTimeout(()=>tone(180,.15,'square',.06),180);saveProgress();buildHome();benchDlg()}
+function homeLoop(now){
+  if(!HM||!HM.running)return;const dt=Math.min((now-HM.last)/1000,.05);HM.last=now;
+  if(!HM.paused&&!HM.dlg)homeUpdate(dt);homeRender(dt);homeHud();requestAnimationFrame(homeLoop);
+}
+function homeUpdate(dt){
+  HM.t+=dt;HM.msgT-=dt;
+  const mouseOn=locked(),f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),s2=mouseOn?(keys.KeyD?1:0)-(keys.KeyA?1:0):0;
+  if(keys.ArrowLeft||(!mouseOn&&keys.KeyA))yaw+=2.4*dt;if(keys.ArrowRight||(!mouseOn&&keys.KeyD))yaw-=2.4*dt;
+  const fx=-Math.sin(yaw),fz=-Math.cos(yaw),rx=Math.cos(yaw),rz=-Math.sin(yaw);
+  let mx=fx*f+rx*s2,mz=fz*f+rz*s2;const ml=Math.hypot(mx,mz);HM.moving=ml>0;
+  if(ml>0){mx/=ml;mz/=ml;const sp=keys.Space?4.2:2.8;const nx=HM.px+mx*sp*dt;if(!homeBlocked(nx,HM.pz))HM.px=nx;const nz=HM.pz+mz*sp*dt;if(!homeBlocked(HM.px,nz))HM.pz=nz;HM.bob+=dt*8}
+}
+function homeRender(dt){
+  const cam=R3.camera;cam.position.set(HM.px,1.6+(HM.moving?Math.sin(HM.bob)*.03:0),HM.pz);cam.rotation.set(pitch,yaw,0);
+  R3.flash.intensity=0;R3.lantern.intensity=0;
+  if(HM.lamp)HM.lamp.intensity=5+Math.sin(HM.t*7)*.2;
+  for(const n of HM.npcs){const ud=n.mdl.userData,t=HM.t+n.i*1.7;const d=Math.hypot(HM.px-n.x,HM.pz-n.z);
+    const ta=d<5?Math.atan2(-(HM.px-n.x),-(HM.pz-n.z)):Math.sin(t*.2)*1.2;let da=ta-n.mdl.rotation.y;while(da>Math.PI)da-=6.283;while(da<-Math.PI)da+=6.283;n.mdl.rotation.y+=da*Math.min(1,dt*3);
+    if(ud.tail){ud.tail.rotation.y=Math.sin(t*12)*.6;continue}
+    if(ud.body){ud.body.scale.y=1+Math.sin(t*2.2)*.03;ud.head.rotation.y=d<5?0:Math.sin(t*.5)*.4;ud.arms[0].rotation.x=Math.sin(t*1.1)*.05;ud.arms[1].rotation.x=-Math.sin(t*1.3)*.05}}
+  R3.renderer.render(R3.scene,cam);
+}
+function homeHud(){
+  const W=innerWidth,H=innerHeight;cx.clearRect(0,0,W,H);
+  cx.fillStyle='rgba(255,255,255,.6)';cx.beginPath();cx.arc(W/2,H/2,2.2,0,7);cx.fill();
+  const L=LOCS[G.start],fn=foodNeed(),wn=waterNeed();
+  cx.textAlign='left';cx.textBaseline='top';cx.fillStyle='rgba(0,0,0,.55)';cx.fillRect(10,10,330,112);
+  cx.fillStyle='#dcd8cc';cx.font='17px Georgia';cx.fillText(`${L.ic} Your shelter · Day ${G.day}`,20,18);
+  cx.font='14px Georgia';cx.fillStyle=G.storm?'#d9a441':G.acted?'#8a8676':'#6fae5a';cx.fillText(G.storm?'⛈️ Storm outside: no trips today':G.acted?"✔ Today's trip is done":"🔦 Today's trip: not used yet",20,42);
+  cx.fillStyle='#d9a441';cx.fillText(`⚡ Dig energy ${G.energy}`,20,62);
+  cx.fillStyle=G.inv.food<fn||G.inv.water<wn?'#d24b43':'#dcd8cc';cx.fillText(`🍽️ Tonight: ${fn} food, ${wn} water (have ${G.inv.food} / ${G.inv.water})`,20,82);
+  cx.fillStyle='#8a8676';cx.fillText(`🪤 Trap: ${['chains','battery','speaker','flood'].filter(k=>G.trap[k]).length}/4 parts · ${['cage','lure','light'].filter(k=>G.trap[k]).length}/3 built`,20,102);
+  const pr=homeLabel(homeTarget());
+  if(pr){cx.textAlign='center';cx.font='16px Georgia';const w=cx.measureText(pr).width+30;cx.fillStyle='rgba(0,0,0,.65)';cx.fillRect(W/2-w/2,H-84,w,34);cx.fillStyle=pr[0]==='✖'?'#d24b43':'#d9a441';cx.fillText(pr,W/2,H-75)}
+  if(HM.msgT>0){cx.textAlign='center';cx.font='18px Georgia';cx.fillStyle=`rgba(230,225,210,${Math.min(1,HM.msgT)})`;cx.fillText(HM.msg,W/2,H*.2)}
+  cx.textAlign='left';cx.fillStyle='rgba(140,135,120,.75)';cx.font='12px Georgia';cx.fillText((locked()?'Mouse look · WASD move':'W/S move · A/D turn · click for mouse')+' · E use · Tab overview · M mute',12,H-22);
+  if(HM.paused){cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(0,0,W,H);cx.fillStyle='#fff';cx.textAlign='center';cx.font='40px Georgia';cx.fillText('PAUSED',W/2,H/2-30)}
 }
 function torchFlash(){
   if(S.dlg||S.paused||S.hidden)return;
@@ -1286,6 +1584,10 @@ function build3D(){
   // file
   R3.file=null;
   if(S.file){const f=new THREE.Mesh(new THREE.BoxGeometry(.42,.03,.56),new THREE.MeshStandardMaterial({color:0xf2ead2,emissive:0x8a8060,emissiveIntensity:.6}));f.position.set(S.file.x*U,.6,S.file.y*U);sc.add(f);R3.file=f}
+  R3.key=null;
+  if(S.key){const kg=new THREE.Group(),P=PARTS[S.key.item];const bx=new THREE.Mesh(new THREE.BoxGeometry(.5,.35,.4),new THREE.MeshStandardMaterial({color:0xd9a441,emissive:0x7a5010,emissiveIntensity:.6}));bx.position.y=.4;kg.add(bx);
+    const tg=textSprite(P.ic,'#fff',.5);tg.position.y=1.1;kg.add(tg);const kl=new THREE.PointLight(0xffb040,2,5,1.6);kl.position.y=.9;kg.add(kl);kg.position.set(S.key.x*U,0,S.key.y*U);sc.add(kg);R3.key=kg}
+  if(S.trapM)buildTrapSite(sc);
   // survivor
   R3.surv=null;R3.help=null;R3.fol=null;
   if(S.surv){const g=S.surv.mimic?mimicMesh(S.surv):npcMesh(S.surv.id);g.position.set(S.surv.x*U,0,S.surv.y*U);g.rotation.y=Math.random()*6;sc.add(g);R3.surv=g;
@@ -1297,25 +1599,32 @@ function build3D(){
 /* ----- run ----- */
 function timeAsk(id,inTunnel){
   const go=d=>`closeDlg();${inTunnel?'stopTunnel();':''}startScav('${id}',${d})`;
-  dlg(`<div class="ic">${LOCS[id].ic}</div><h2 style="margin:0 0 10px">When do you go to the ${LOCS[id].name}?</h2>
+  dlg(`<div class="ic">${LOCS[id].ic}</div><h2 style="margin:0 0 10px">When do you go to ${id==='trapsite'?'set the trap':'the '+LOCS[id].name}?</h2>
   <div class="card click" onclick="${go(true)}"><b>🌞 Go now, in daylight</b><div class="small dim" style="margin-top:4px">You can see the empty city clearly. It's sluggish in the day and hears much less, but it can <b>spot you from far away</b>. Keep out of its sight.</div></div>
   <div class="card click" style="margin-top:10px" onclick="${go(false)}"><b>🌙 Wait until dark</b><div class="small dim" style="margin-top:4px">Pitch black except your torch. It can't see far, but it <b>hears every sound</b>. Move quietly.</div></div>
   <button class="btn" style="margin-top:12px" onclick="closeDlg();${inTunnel?'TU.dlg=false':''}">Cancel</button>`);
 }
 function startScav(id,day){
+  stopHome();
+  if(id==='trapsite'&&!G.locs.trapsite)G.locs.trapsite={visits:0,surv:null,file:false,tunnel:false,bonus:false,hidden:true};
   G.acted=true;saveProgress();const L=G.locs[id],tun=L.tunnel;
   const mp=genMap(id,tun);
   const dumped=Math.min(G.dirt,6);G.dirt-=dumped;
   S={id,L,tun,day:!!day,...mp,px:(mp.spawn[0]+.5)*T,py:(mp.spawn[1]+.5)*T,hidden:null,bag:[],cap:8+(has('dex')?4:0),
-     time:150+(tun?60:0),hunt:false,rings:[],noiseT:0,search:null,follower:null,trail:[],trailT:0,msg:'',msgT:0,
+     time:(LOCS[id].far?120:150)+(tun?60:0),hunt:false,rings:[],noiseT:0,search:null,follower:null,trail:[],trailT:0,msg:'',msgT:0,
      paused:false,running:true,dlg:false,seenHide:false,flashCd:0,flashT:0,beatT:0,helpT:0,cryT:rnd(10,20),t:0,dumped,bob:0,moving:false,flick:0};
   let cxp,cyp;
   if(tun){cxp=1.5*T;cyp=1.5*T}
   else{let k=0;do{const r=pick(mp.rooms);cxp=(ri2(r[0],r[2])+.5)*T;cyp=(ri2(r[1],r[3])+.5)*T;k++}while((solid(mp.m[Math.floor(cyp/T)*MW+Math.floor(cxp/T)])||Math.hypot(cxp-S.px,cyp-S.py)<500)&&k<300)}
   S.cre={x:cxp,y:cyp,state:'wander',tx:cxp,ty:cyp,field:null,tt:-1,distT:0,dormant:tun?20:4,wait:0,lostT:0,lastX:0,lastY:0,anim:0,stun:0,disguised:false};
-  if(!S.surv&&G.day>=2&&Math.random()<.4){
+  if(!S.surv&&G.day>=2&&id!=='trapsite'&&Math.random()<.4){
     let q,k=0;do{const r=pick(mp.rooms);q=[ri2(r[0],r[2]),ri2(r[1],r[3])];k++}while((S.m[q[1]*MW+q[0]]!==1||Math.hypot(q[0]-mp.spawn[0],q[1]-mp.spawn[1])<8)&&k<400);
     S.surv=makeMimic((q[0]+.5)*T,(q[1]+.5)*T);S.cre.disguised=true;S.cre.x=S.surv.x;S.cre.y=S.surv.y}
+  S.key=null;const ki=KEYITEMS[id];
+  if(ki&&!G.trap[ki]){let q,k=0;do{const r=pick(mp.rooms);q=[ri2(r[0],r[2]),ri2(r[1],r[3])];k++}while(S.m[q[1]*MW+q[0]]!==1&&k<400);S.key={x:(q[0]+.5)*T,y:(q[1]+.5)*T,item:ki}}
+  S.trapM=null;
+  if(id==='trapsite'){for(let y=22;y<=28;y++)for(let x=6;x<=34;x++)if(S.m[y*MW+x]===5)S.m[y*MW+x]=0;
+    S.trapM={phase:'place',cx:10.5*T,cy:25*T,x0:8*T,x1:13*T,y0:23.5*T,y1:26.5*T,lx:19.5*T,ly:27.6*T,lureT:0,cageY:3,dropped:false};S.cre.dormant=35}
   yaw=tun?Math.random()*6.28:0;pitch=0;
   ui.style.display='none';cv.style.display='block';gl.style.display='block';
   build3D();resizeCv();
@@ -1359,6 +1668,8 @@ function findTarget(){
     consider({type:c,x,y,i:y*MW+x},(x+.5)*T,(y+.5)*T,52)}
   if(S.surv&&!(S.surv.mode==='attack'||S.surv.mode==='flee'))consider({type:'surv'},S.surv.x,S.surv.y,54);
   if(S.file)consider({type:'file'},S.file.x,S.file.y,46);
+  if(S.key)consider({type:'key'},S.key.x,S.key.y,50);
+  if(S.trapM){const tm=S.trapM;if(tm.phase==='place')consider({type:'tplace'},tm.cx,tm.cy,70);if(tm.phase==='arm'||tm.phase==='active')consider({type:'lever'},tm.lx,tm.ly,60)}
   return best;
 }
 function interact(){
@@ -1376,6 +1687,8 @@ function interact(){
   else if(best.type===6||best.type===7)leaveScav();
   else if(best.type==='surv')meetSurvivor();
   else if(best.type==='file')takeFile();
+  else if(best.type==='key')takeKey();
+  else if(best.type==='tplace'||best.type==='lever')trapAct(best.type);
 }
 function openDlg(h){S.dlg=true;for(const k in keys)keys[k]=false;unlock();dlg(h)}
 function closeScavDlg(){closeDlg();S.dlg=false;showMsg('Click to look around again.',2)}
@@ -1431,6 +1744,7 @@ function leaveScav(){
   if(S.surv&&!S.surv.mimic&&S.surv.mode==='follow'&&Math.hypot(S.surv.x-S.px,S.surv.y-S.py)<170){const sv=SURV[S.surv.id];
     if(G.people.length<ST().cap){G.people.push(mkPerson(S.surv.id));G.rescued++;G.left=Math.max(0,G.left-1);S.L.surv=null;addLog(`${sv.ic} ${sv.name} followed you all the way home. You couldn't shut the door on them.`)}
     else addLog(`${sv.ic} ${sv.name} followed you home, but there was no room. You had to shut the door on them.`)}
+  if(S.trapM&&S.trapM.phase==='failed')addLog('💥 The trap failed and the cage is wrecked. Rebuild it at the workbench and try again.');
   if(S.mimicFound)addLog('🔦 You saw through the creature\'s disguise and drove it off with your torch.');
   if(S.follower){G.people.push(mkPerson(S.follower.id));G.rescued++;addLog(`${S.follower.ic} ${S.follower.name} joined your group.`)}
   if(got.shovel)addLog('🪏 A real shovel! Digging is much faster now.');
@@ -1487,13 +1801,15 @@ function updScav(dt){
     if(s2.t>=s2.dur){s2.c.done=true;S.search=null;finishSearch(s2.c)}}
   S.trailT-=dt;if(S.trailT<=0&&!S.hidden){S.trailT=.08;S.trail.push([S.px,S.py]);if(S.trail.length>14)S.trail.shift()}
   npcUpdate(dt);if(S.hitT>0)S.hitT-=dt;
+  if(S.trapM&&S.trapM.phase==='active'){S.trapM.lureT-=dt;if(S.trapM.lureT<=0){S.trapM.lureT=1.8;noise(S.trapM.cx,S.trapM.cy,3000,'255,210,90');tone(330,.25,'square',.03);tone(247,.25,'square',.03)}}
   if(S.follower){const fo=S.follower,tg=S.trail[0]||[S.px,S.py];const dx=tg[0]-fo.x,dy=tg[1]-fo.y,d=Math.hypot(dx,dy);
     if(d>4){const sp=Math.min(d,220*dt);fo.x+=dx/d*sp;fo.y+=dy/d*sp;fo.moving=true}else fo.moving=false;
     if(fo.id==='leo'){S.cryT-=dt;if(S.cryT<=0){S.cryT=rnd(14,24);noise(fo.x,fo.y,230,'210,180,120');showMsg('🧒 Leo whimpers in the dark...',2);tone(500,.4,'sine',.03,.8)}}}
   if(S.surv){S.helpT-=dt;if(S.helpT<=0){S.helpT=5;S.help={life:1.6};tone(330,.5,'sine',.015,.9)}}
   if(S.help)S.help.life-=dt;
   const c=S.cre,pd=Math.hypot(c.x-S.px,c.y-S.py);c.anim+=dt;
-  if(c.disguised){mimicUpdate(dt);if(!S.running)return}
+  if(c.caged){}
+  else if(c.disguised){mimicUpdate(dt);if(!S.running)return}
   else if(c.stun>0){c.stun-=dt;creMove(c,c.tx,c.ty,175,dt);if(c.stun<=0){c.state='wander';[c.tx,c.ty]=randomFloor()}}
   else if(c.dormant>0)c.dormant-=dt;
   else{
@@ -1563,6 +1879,8 @@ function render3D(dt){
   if(R3.help)R3.help.material.opacity=S.help&&S.help.life>0?Math.min(1,S.help.life)*.85:0;
   if(R3.fol&&S.follower)animNPC(R3.fol,S.follower,dt);
   if(R3.file){R3.file.rotation.y+=dt;R3.file.position.y=.55+Math.sin(t*2)*.08}
+  if(R3.key){R3.key.rotation.y+=dt*.8;R3.key.position.y=Math.sin(t*2)*.06}
+  if(S.trapM)renderTrap(dt);
   // lamps
   for(const l of R3.lamps){if(l.broken){const on=Math.random()>(S.hunt?.5:.06);l.pl.intensity=on?l.base:0;l.head.visible=on}}
   // rings
@@ -1635,6 +1953,9 @@ function hudScav(){
   cx.fillStyle=jam?'#9fe8b8':(cb.out||c.disguised)?'#6fae5a':cd<12?'#ff5040':'#d9a441';
   cx.fillText(jam?'RADAR · interference...':(cb.out||c.disguised)?`RADAR ${rangeM}m · nothing close`:`⚠ IT IS ${cd}m AWAY`,rcx,rcy+RR+5);
   cx.fillStyle='#8a8676';cx.fillText(`${S.hatch?'TUNNEL':'HOME'} ${Math.round(eh.d*U)}m${has('dog')?' · 🐕 long range':''}`,rcx,rcy+RR+20);
+  if(S.trapM){const tm=S.trapM,ob={place:'🪤 Carry the lure into the middle of the cage and set it down (E)',arm:'🪤 Get to the lever by the car park (green light) and switch the lure on',active:trapInZone()?'🪤 IT\'S INSIDE THE CAGE! DROP IT NOW! (E at the lever)':'🪤 Wait by the lever. When it walks into the cage, drop it.',won:'🪤 GOT IT!',failed:'🪤 The trap failed. Get out of there!'}[tm.phase];
+    cx.font='bold 16px Georgia';const ow=cx.measureText(ob).width+30;cx.fillStyle='rgba(40,8,6,.75)';cx.fillRect(W/2-ow/2,rcy+RR+40,ow,30);cx.fillStyle=tm.phase==='active'&&trapInZone()?'#ff6050':'#ffd870';cx.fillText(ob,W/2,rcy+RR+47);
+    const cp=pos(tm.cx,tm.cy),lp=pos(tm.lx,tm.ly);cx.fillStyle='#ffd870';cx.fillRect(cp.x-4,cp.y-4,8,8);cx.fillStyle='#70ff90';cx.beginPath();cx.arc(lp.x,lp.y,3,0,7);cx.fill()}
   // search bar
   if(S.search){const s=S.search;cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(W/2-80,H/2+30,160,10);cx.fillStyle='#d9a441';cx.fillRect(W/2-78,H/2+32,156*s.t/s.dur,6)}
   // prompt
@@ -1649,7 +1970,10 @@ function promptText(){
   if(S.hidden)return'[E] Leave hiding spot';
   if(S.search)return'Searching... (moving cancels)';
   const b=findTarget();if(!b)return'';
-  if(b.type==='surv')return'[E] Talk';if(b.type==='file')return'[E] Pick up the file';
+  if(b.type==='surv')return'[E] Talk';
+  if(b.type==='key')return'[E] Take the '+PARTS[S.key.item].n.toLowerCase();
+  if(b.type==='tplace')return'[E] Set the lure down inside the cage';
+  if(b.type==='lever')return S.trapM.phase==='arm'?'[E] Switch the lure ON':(trapInZone()?'[E] DROP THE CAGE!':'[E] Drop the cage (it isn\'t inside yet!)');if(b.type==='file')return'[E] Pick up the file';
   if(b.type===3)return'[E] Search';if(b.type===4)return'[E] Hide in the '+theme().hide;if(b.type===5)return'[E] Hide in car';
   if(b.type===6||b.type===7)return`[E] Go home${S.follower?' with '+S.follower.name:''}`;
   return'';
@@ -1661,7 +1985,7 @@ function finish(forced){
   stopScav();closeDlg();
   let e=forced;
   const others=G.people.filter(p=>p.id!=='you');
-  if(!e){
+  if(!e||e==='trapped'){
     const linked=Object.values(G.locs).filter(l=>l.tunnel).length;
     if(G.files>=3)e='truth';
     else if(linked>=4)e='underground';
@@ -1675,14 +1999,14 @@ function finish(forced){
   const names=others.map(p=>p.name);const nm=names.length?names.join(', '):'no one';
   const gone=[...G.deaths];
   const T={
-    everyone:`On day 20 the rotor blades cut through the silence. Every single person you found walked out beside you: ${nm}. Nobody left behind. Nobody lost. You did the impossible.`,
-    rescued:`Rescue arrived on day 20. You climbed into the helicopter with ${nm}. Below you, something tall and dark stood perfectly still in the street, listening to you leave.`,
-    hard:`Rescue arrived on day 20. You made it out with ${nm}. But not everyone did.${gone.length?' You think about '+gone.join(', ')+'.':''}${G.left?' And you think about the ones you walked away from.':''} You did what you had to. Didn't you?`,
-    alone:`The helicopter came on day 20. You climbed aboard with no one beside you. The pilot asks if there's anyone else. You don't answer. You survived. Was it worth it?`,
-    underground:`By day 20 nobody had to step outside at all. Your tunnels linked the whole street: a hidden city right under the creature's feet. When rescue finally came, ${nm==='no one'?'you':'you and '+nm} almost didn't want to leave.`,
+    everyone:`The cage held. With the creature pinned under the floodlight, the helicopters could finally land. Every single person you found walked out beside you: ${nm}. Nobody left behind. Nobody lost. You did the impossible.`,
+    rescued:`The cage held. By morning the army had come for it, and for you. You climbed into the helicopter with ${nm}. Below you the floodlight still burned on the thing in the cage. It was still listening.`,
+    hard:`You trapped it, and the helicopters came at dawn. You made it out with ${nm}. But not everyone did.${gone.length?' You think about '+gone.join(', ')+'.':''}${G.left?' And you think about the ones you walked away from.':''} You did what you had to. Didn't you?`,
+    alone:`You trapped it all by yourself. When the helicopter came, you climbed aboard with no one beside you. The pilot asks if there's anyone else. You don't answer. You survived. Was it worth it?`,
+    underground:`You caged it, and your tunnels meant hardly anyone ever had to step outside to do it: a hidden city right under the creature's feet. When rescue finally came, ${nm==='no one'?'you':'you and '+nm} almost didn't want to leave.`,
     sewers:`You led ${nm==='no one'?'yourself':'everyone ('+nm+')'} down into the storm sewers. Hours of black water and echoes. Then a ladder, a grate, and fresh air. You climbed out past the edge of the city into birdsong. It never followed.`,
-    truth:`Three files. One answer. The creature was Project Listener, built to hunt anything that makes a sound. It escaped. ${has('leo')?'On day 20, Leo takes your hand. "It\'s not angry," he whispers. "It\'s lonely." He walks out into the street before you can stop him, and the creature lowers itself to the ground in front of him and goes completely still.':'Somewhere out there is a boy it never hurt. Maybe next time you\'ll find him.'} Rescue arrives. The truth goes with you.`,
-    betrayed:`Rescue arrived on day 20. When you reached the helicopter, Dex was already on board, eating your food. He didn't look at you. ${others.length?'You climb in with '+nm+' and sit as far from him as you can.':'You climb in alone.'}`,
+    truth:`Three files, one answer: Project Listener, built to hunt anything that makes a sound. And you used that against it. ${has('leo')?'Leo kneels by the bars. "It\'s not angry," he whispers. "It\'s lonely." The creature goes completely still and lets him rest a hand on the cage.':'You stand by the cage until rescue comes, wondering what it used to be.'} The truth goes with you.`,
+    betrayed:`You caged it. But when you reached the helicopter, Dex was already on board, eating your food. He didn't look at you. ${others.length?'You climb in with '+nm+' and sit as far from him as you can.':'You climb in alone.'}`,
     taken:`It found you. Nobody knows exactly what happened next. The quiet outside got a little quieter.`,
     starved:`You made it through ${G.day-1} nights. In the end it wasn't the creature that got you. It was the empty cupboards.`,
     buried:`The tunnel groaned, then gave way. The earth closed over you, as silent as the thing up above.`
@@ -1690,7 +2014,7 @@ function finish(forced){
   const E=ENDINGS[e],got=gotEndings();
   if(['taken','buried'].includes(e))scream();else tone(e==='starved'?110:330,1.5,'sine',.05,e==='starved'?.5:1.5);
   show(`<div class="wrap"><div class="ending"><div class="ic">${E.ic}</div><p class="dim small" style="letter-spacing:.2em">ENDING</p><h1 style="margin:0 0 20px;font-size:clamp(30px,6vw,54px)">${E.t}</h1><p>${T}</p>
-  <p class="dim small" style="margin-top:24px">Survived ${Math.min(G.day,G.max)} day${G.day>1?'s':''} · Rescued ${G.rescued} · Lost ${G.deaths.length+G.lost} · Left behind ${G.left} · Files ${G.files}/3</p>
+  <p class="dim small" style="margin-top:24px">Survived ${G.day} day${G.day>1?'s':''} · Rescued ${G.rescued} · Lost ${G.deaths.length+G.lost} · Left behind ${G.left} · Files ${G.files}/3</p>
   <h3>Endings found ${got.length}/${Object.keys(ENDINGS).length}</h3>
   <div class="elist">${Object.keys(ENDINGS).map(k=>got.includes(k)?`<span class="got">${ENDINGS[k].ic} ${ENDINGS[k].t}</span>`:'<span>???</span>').join('')}</div>
   <button class="btn big" onclick="startPick()">PLAY AGAIN</button><br><button class="btn" style="margin-top:10px" onclick="titleScreen()">Title screen</button></div></div>`);
