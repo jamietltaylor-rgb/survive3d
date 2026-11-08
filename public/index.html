@@ -76,6 +76,9 @@ label{font-size:14px;margin-right:12px;cursor:pointer}
 #tpause{position:absolute;top:calc(max(10px,env(safe-area-inset-top)) + 40px);right:max(10px,env(safe-area-inset-right));pointer-events:auto;width:44px;height:44px;font-size:18px}
 #rotHint{position:absolute;top:42%;left:10%;right:10%;text-align:center;color:#fff;background:rgba(0,0,0,.72);padding:14px;border-radius:8px;font:16px Georgia,serif;display:none}
 @media (pointer:coarse){.btn{padding:13px 18px}.mini{padding:9px 12px}h1{margin-top:4vh}}
+.rscreen{background:#0c140f;border:1px solid #2a4a32;color:#a6f0b8;font-family:'Courier New',monospace;padding:14px;min-height:100px;border-radius:6px;text-align:left;font-size:16px;line-height:1.5;transition:opacity .15s}
+.dial{display:flex;justify-content:space-between;font:13px 'Courier New',monospace;color:#5a7a62;border-bottom:2px solid #2a4a32;padding:4px 6px}
+.dial span.on{color:#ffd870;text-shadow:0 0 8px #ffb040}
 kbd{background:#262a31;border:1px solid #3a3f49;border-radius:3px;padding:1px 6px;font-family:monospace;color:#fff}
 </style>
 </head>
@@ -112,7 +115,7 @@ const IS_TOUCH=!!(window.matchMedia&&matchMedia('(pointer:coarse)').matches);
 const keyTxt=t=>IS_TOUCH&&t?t.replace('[E]','👆').replace('[F] ',''):t;
 const HS=()=>IS_TOUCH&&Math.min(innerWidth,innerHeight)<520?.72:1;
 /* ---------- settings ---------- */
-const SET=(()=>{const d={vol:80,loudGlass:false,screams:true,jump:true,heart:true,sens:1};try{return{...d,...JSON.parse(localStorage.getItem('qo_settings')||'{}')}}catch(e){return d}})();
+const SET=(()=>{const d={vol:80,loudGlass:false,screams:true,jump:true,heart:true,sens:1,voice:true};try{return{...d,...JSON.parse(localStorage.getItem('qo_settings')||'{}')}}catch(e){return d}})();
 function saveSet(){try{localStorage.setItem('qo_settings',JSON.stringify(SET))}catch(e){}}
 let MASTER=null;
 function outNode(){if(!MASTER){MASTER=AC.createGain();MASTER.connect(AC.destination)}MASTER.gain.value=SET.vol/100;return MASTER}
@@ -125,6 +128,7 @@ function settingsDlg(){
   ${ck('loudGlass','Loud glass smash','The big crash when you break open a glass case. Off = a soft tinkle instead. (The creature still hears it either way!)')}
   ${ck('screams','Creature screams','The shriek when it spots you or catches you. Off = a quiet low tone.')}
   ${ck('jump','Jump scare','Its face filling the screen when it catches you. Off = the screen just goes dark.')}
+  ${ck('voice','Radio & TV voices','Read out loud what the radio and TV say.')}
   ${ck('heart','Heartbeat','The thumping sound when the creature is close.')}
   <div style="margin-top:14px"><button class="btn amber" onclick="Object.assign(SET,{loudGlass:false,screams:false,jump:false,heart:false});saveSet();settingsDlg()">😌 Make it less scary</button><button class="btn" onclick="Object.assign(SET,{loudGlass:true,screams:true,jump:true,heart:true});saveSet();settingsDlg()">😱 Full scary</button></div>
   <button class="btn" style="margin-top:6px" onclick="closeDlg()">Done</button>`);
@@ -1178,9 +1182,9 @@ function trapAct(type){
 /* ---------- the shelter (3D) ---------- */
 let HM=null;
 const HT=2.5,HW=8,HH=6,HWH=3.1;
-function stopHome(){if(HM&&HM.running){HM.running=false;setTouch(null);stopDrone();unlock();gl.style.display='none';cv.style.display='none'}}
+function stopHome(){mediaStop();if(HM&&HM.running){HM.running=false;setTouch(null);stopDrone();unlock();gl.style.display='none';cv.style.display='none'}}
 function homeDlg(h,wide){if(HM){HM.dlg=true}for(const k in keys)keys[k]=false;unlock();dlg(h);if(wide)$('#dlgbox').style.maxWidth='900px'}
-function homeClose(){closeDlg();PANEL=null;if(HM)HM.dlg=false}
+function homeClose(){mediaStop();closeDlg();PANEL=null;if(HM)HM.dlg=false}
 function homeMsg(t,d=2.6){if(HM){HM.msg=t;HM.msgT=d}}
 function enterHome(){
   stopScav();stopTunnel();closeDlg();PANEL=null;updateTunnelLinks();
@@ -1188,7 +1192,7 @@ function enterHome(){
   checkUnlock();init3D();
   if(!R3.lantern){R3.lantern=new THREE.PointLight(0xffb060,0,10,1.4);R3.lantern.position.set(-.3,-.3,.2);R3.camera.add(R3.lantern)}
   const old=HM,keep=old&&old.keepPos;
-  HM={running:true,px:keep?old.px:4.5*HT,pz:keep?old.pz:4.7*HT,t:0,last:performance.now(),bob:0,moving:false,msg:'',msgT:0,paused:false,dlg:false,npcs:[],stations:[],solid:new Set()};
+  HM={running:true,px:keep?old.px:4.5*HT,pz:keep?old.pz:4.7*HT,t:0,last:performance.now(),bob:0,moving:false,msg:'',msgT:0,paused:false,dlg:false,npcs:[],stations:[],solid:new Set(),blocks:[]};
   if(!keep){yaw=0;pitch=0}
   ui.style.display='none';cv.style.display='block';gl.style.display='block';
   buildHome();resizeCv();saveProgress();setTouch('home');
@@ -1299,15 +1303,28 @@ function buildHome(){
   const wax=std({color:0xeeeadf}),flameM=new THREE.MeshBasicMaterial({color:0xffb050});
   for(const [x,z] of[[2.7*HT,3.3*HT],[.9*HT,2.2*HT],[6.9*HT,2.6*HT]]){const y=z===3.3*HT?.82:0;box(.06,.16,.06,wax,x,y+.08,z);const fl2=new THREE.Mesh(new THREE.SphereGeometry(.025,6,4),flameM);fl2.scale.y=1.8;fl2.position.set(x,y+.2,z);sc.add(fl2);const cl=new THREE.PointLight(0xffa040,.9,4,1.8);cl.position.set(x,y+.35,z);sc.add(cl)}
   for(let k=0;k<6;k++){const t2=new THREE.Mesh(can,std({color:0x8a8a8a,metalness:.6}));t2.position.set(4.6*HT+rnd(-.5,.5),.07,5.5*HT+rnd(-.3,.3));t2.rotation.z=Math.random()<.6?Math.PI/2:0;t2.rotation.y=rnd(0,6);sc.add(t2)}
-  const bucket=new THREE.Mesh(new THREE.CylinderGeometry(.2,.16,.32,12,1,true),std({color:0x6a6e74,metalness:.5,side:THREE.DoubleSide}));bucket.position.set(.6*HT,.16,3.3*HT);sc.add(bucket);
+  const bucket=new THREE.Mesh(new THREE.CylinderGeometry(.2,.16,.32,12,1,true),std({color:0x6a6e74,metalness:.5,side:THREE.DoubleSide}));bucket.position.set(4.25*HT,.16,.45*HT);sc.add(bucket);
+  // ---- TV on a stand against the west wall
+  box(.9,.62,1.7,wood,.5,.31,3*HT);box(.55,.78,1.2,dark,.5,1.01,3*HT);
+  HM.tvTex=new THREE.CanvasTexture(TVC);HM.tvTex.colorSpace=THREE.SRGBColorSpace;
+  const scr=new THREE.Mesh(new THREE.PlaneGeometry(1.0,.58),new THREE.MeshBasicMaterial({map:HM.tvTex}));scr.rotation.y=Math.PI/2;scr.position.set(.785,1.03,3*HT);sc.add(scr);
+  for(const r2 of[.5,-.5]){const a=box(.015,.7,.015,metal,.5,1.7,3*HT+r2*.25);a.rotation.x=r2*.9}
+  HM.tvLight=new THREE.PointLight(0x8ab4ff,1.6,6,1.6);HM.tvLight.position.set(1.6,1.1,3*HT);sc.add(HM.tvLight);
+  st('tv',1.9*HT,3*HT,2.6);
+  // ---- what you bump into (real furniture sizes)
+  HM.blocks=[[.06*HT,.05*HT,.94*HT,1.95*HT],[2.05*HT,0,2.95*HT,.63*HT],[7.53*HT,.1*HT,W,1.9*HT],[6.85*HT,1.5*HT,7.02*HT,2.9*HT],
+    [6.6*HT-.45,5.4*HT-.3,6.6*HT+.45,5.4*HT+.3],[7.75*HT,5.45*HT,W,5.5*HT+.75],[7.08*HT,3.08*HT,W,4.92*HT],[2.2*HT-.3,3.05*HT,3.8*HT+.3,3.95*HT],
+    [0,D-.6,1.95*HT,D],[2.9*HT-.4,D-.9,2.9*HT+.4,D],[5.1*HT-.4,D-.9,5.1*HT+.4,D],[3.3*HT-.3,D-.5,3.3*HT+2.3,D],[6.1*HT-.35,.1,6.55*HT+.32,.8],
+    [0,2.6*HT,.98,3.4*HT],[4.25*HT-.22,.45*HT-.22,4.25*HT+.22,.45*HT+.22]];
+  if(G.trap.cage)HM.blocks.push([6.7*HT,3.0*HT-.1,6.85*HT,3.0*HT+.9]);
   // the people you're keeping alive
   const spots=[[1.4,4.6],[5.4,2.3],[1.6,2.4],[6,5.2],[4.5,1.7],[2.6,5.2]];
   G.people.filter(p=>p.id!=='you').forEach((p,k)=>{const i=G.people.indexOf(p),[sx,sz]=spots[k%spots.length];
     let mdl;if(SURV[p.id])mdl=npcMesh(p.id);else{mdl=humanoid(0x5a6a5a);const tg=textSprite('🧑','#fff',.45);tg.position.y=2.2;mdl.add(tg)}
     mdl.position.set(sx*HT,0,sz*HT);sc.add(mdl);HM.npcs.push({mdl,i,x:sx*HT,z:sz*HT})});
 }
-function homeBlocked(x,z){const r=.32,W=HW*HT,D=HH*HT;if(x<r||z<r||x>W-r||z>D-r)return true;
-  for(const [a,b] of[[-r,-r],[r,-r],[-r,r],[r,r]])if(HM.solid.has(Math.floor((x+a)/HT)+','+Math.floor((z+b)/HT)))return true;
+function homeBlocked(x,z){const r=.3,W=HW*HT,D=HH*HT;if(x<r||z<r||x>W-r||z>D-r)return true;
+  for(const [x0,z0,x1,z1] of HM.blocks){const qx=clamp(x,x0,x1),qz=clamp(z,z0,z1);if((x-qx)**2+(z-qz)**2<r*r)return true}
   for(const n of HM.npcs)if(Math.hypot(n.x-x,n.z-z)<.45)return true;return false}
 function homeTarget(){
   const fx=-Math.sin(yaw),fz=-Math.cos(yaw);let best=null,bs=1e9;
@@ -1322,7 +1339,8 @@ function homeLabel(t){
     case'bed':return G.acted?'[E] Bed: sleep (end the day)':'[E] Bed: rest, or sleep to end the day';
     case'table':return"[E] Table: plan tonight's food & water";
     case'shelf':return'[E] Supplies: see what you have';
-    case'radio':return'[E] Radio: listen in / read your journal';
+    case'radio':return'[E] Radio: tune in for clues, news and talk shows';
+    case'tv':return'[E] TV: watch something';
     case'board':return'[E] The plan: how to trap it';
     case'bench':return'[E] Workbench: build the trap';
     case'hatch':return`[E] Climb down to the tunnels (⚡ ${G.energy} energy)`;
@@ -1338,6 +1356,7 @@ function homeInteract(){
     case'table':return rationsDlg();
     case'shelf':return suppliesDlg();
     case'radio':return radioDlg();
+    case'tv':return tvDlg();
     case'board':return planDlg();
     case'bench':return benchDlg();
     case'hatch':stopHome();return tunnelScreen();
@@ -1355,9 +1374,164 @@ function personDlg(i){PANEL='person:'+i;const p=G.people[i];if(!p)return homeClo
 function suppliesDlg(){const tools=(G.tools.shovel?'🪏 Shovel ':'')+(G.tools.pickaxe?'⛏️ Pickaxe':'')||'None yet';
   const parts=Object.keys(PARTS).map(k=>`<span style="opacity:${G.trap[k]?1:.35}">${PARTS[k].ic} ${PARTS[k].n}${G.trap[k]?' ✓':''}</span>`).join(' &nbsp; ');
   homeDlg(`<div class="ic">📦</div><h2 style="margin:0 0 10px">Your supplies</h2><div class="inv" style="justify-content:center">${invHTML()}</div><p style="margin-top:14px"><b>Tools:</b> ${tools}</p><p><b>Trap parts:</b><br>${parts}</p><p class="small dim">🪣 Dirt piled up from digging: ${G.dirt}/${dirtMax()} · Strange files: ${G.files}/3</p><button class="btn" onclick="homeClose()">Close</button>`)}
-function radioDlg(){const msg=RADIO[(G.radio||0)%RADIO.length];G.radio=(G.radio||0)+1;tone(800,.3,'sawtooth',.01,.5);hiss(.5,.04,3000);
-  homeDlg(`<div class="ic">📻</div><p><i>${msg}</i></p><h3>Your journal</h3><div class="log" style="margin-top:0;max-height:280px">${G.log.slice(-18).map(l=>`<p class="${l.cls||''}">${l.t}</p>`).join('')}</div><button class="btn" style="margin-top:10px" onclick="homeClose()">Switch it off</button>`,true);
+/* ----- radio & TV ----- */
+const TALK=['Welcome back to Order! Order! I\'m Bernard Gristle. Today\'s big question: should the creature be made to pay council tax? Councillor Mavis Ploughshare says yes. "It\'s been living here rent-free for weeks."',
+  'The Moderately Quiet Party has proposed banning crisp packets. Their leader announced the policy in a whisper so quiet that nobody heard it, which the party is calling a huge success.',
+  'Deputy Mayor Trevor Wobble has promised "a cage in every garden by Christmas". When asked who would build them, he said "the garden gnomes, obviously," and then ran away.',
+  'The Loud and Proud Alliance want to scare the creature off with a brass band. Their last rally lasted eleven seconds. They\'re calling it "a short tour".',
+  'Caller on line two: "Hi Bernard, long-time listener, first-time hider. If the council can\'t stop the creature, can they at least stop the pigeons?"',
+  'Breaking news: the Minister for Puddles has resigned after stepping in one. He says he will "reflect on his position, and also his socks".',
+  'New poll: forty percent of people think the creature should be trapped. Thirty percent think it should be reasoned with. And thirty percent were hiding in a wardrobe and couldn\'t answer.',
+  'The Sensible Sandwich Party has unveiled its manifesto. It\'s a sandwich. Critics say it lacks detail. Supporters say it lacks crusts, and that\'s what really matters.',
+  'Councillor Ploughshare and Deputy Mayor Wobble debated for two hours about whether to have a debate. They\'ll meet again next week to decide whether that counted.',
+  'A listener writes: "Dear Bernard, my neighbour keeps knocking on my door at night asking to be let in. Should I vote for him?" Bernard says: do NOT open that door. And never vote for anyone who knocks at three in the morning.',
+  'The Spoons Not Forks Coalition has a bold plan: hit the creature with a very big spoon. Experts say the spoon would need to be roughly the size of a bus. The Coalition says "then we\'ll need a bigger drawer".',
+  'The town council has voted to rename the creature "Gary" to make it less scary. Gary was unavailable for comment, because Gary is a seven-foot monster.',
+  'Deputy Mayor Wobble has denied hiding in the council fridge for six days. He made the statement from inside the council fridge.',
+  'Councillor Ploughshare has proposed a curfew: everybody indoors by dark. Her opponents have proposed an even earlier curfew: everybody indoors by lunch. The debate continues, quietly.'];
+const DJ=['You\'re listening to Golden Oldies with DJ Smooth Kevin. That was "Don\'t Make a Sound" by The Whispers.',
+  'Coming up next: "Tiptoe Through the Hallway" by Gentle Feet. A real classic.',
+  'A dedication from Maya to Tom: "Please stop snoring, it can hear you." Lovely stuff.',
+  'Here\'s one for all you hiders out there: "Hold Your Breath (Till Morning)" by The Wardrobe Kids.',
+  'Kevin\'s tip of the night: if you\'re dancing, dance in socks. Much quieter.',
+  'That was "Can\'t Stop the Fog" by The Grey Mornings. Shout out to everyone still out there. Stay safe, stay quiet.'];
+const PUDDLE=['Hello boys and girls! It\'s me, Captain Puddle!','Remember: if you hear something big outside, be as quiet as a duck in a library!','Captain Puddle\'s top tip: never open the door at night. Not even for bread.','Splish! Splash! Oh no, that was far too loud! Shhhh!','Let\'s count the puddles together. One, two, three... what\'s that in the fog? Never mind! Four!','Captain Puddle has to go now. Remember: whisper, waddle, and wait!'];
+const COOK=['Welcome to Cooking with Tins! Today: beans. On beans. With a side of beans.','Step one: open the tin very, very quietly. If it goes pop, run.','Step two: eat it cold. Fires make smoke, and smoke makes trouble.','Chef\'s secret: peaches in syrup count as a pudding AND a drink.','Never waste the water from a tin. Out here, every drop counts.','Next week: soup you can eat with a fork, for when all the spoons are gone.'];
+const WEATHER=['Tonight\'s forecast: fog, fog and more fog, with a hundred percent chance of something lurking.','Wind: light and whispery. Visibility: about as far as you can throw a tin of beans.','Tomorrow: grey in the morning, grey in the afternoon, and dark by teatime. Stay in.','Pollen count: low. Monster count: one. Please plan accordingly.','Weekend outlook: still foggy. Still don\'t go out after dark.'];
+const NEWS_EXTRA=['Our reporter is broadcasting from a cupboard. She says it is actually quite cosy.','Experts confirm the creature hates bright light. A torch in its eyes may save your life.','The shops are all still closed. Taking supplies is technically frowned upon, but nobody is checking.'];
+function clueLines(){
+  const L=[],where={chains:'factory',battery:'petrol',speaker:'radio',flood:'firestation'};
+  const desc={chains:'heavy chains still coiled on a pallet',battery:'car batteries stacked behind the counter',speaker:'a huge loudspeaker on the studio roof',flood:'portable floodlights in the engine bay'};
+  const far={factory:'an old ironworks factory',petrol:'a petrol station on the ring road',radio:'the city radio station',firestation:'the fire station by the river'};
+  for(const k in where){if(G.trap&&G.trap[k])continue;const loc=where[k];
+    L.push(G.locs[loc]?`A survivor reports ${desc[k]} at the ${LOCS[loc].name}. That is exactly what the trap needs.`:`Rumours of ${desc[k]} at ${far[loc]}, further across the city. The way there opens once you have searched everywhere closer to home.`)}
+  if(G.trap)for(const r of RECIPES)if(!G.trap[r.id]&&r.parts.every(p=>G.trap[p]))L.push(`You have the parts for ${r.n.toLowerCase()}. Get to your workbench.`);
+  if(trapReady())L.push('All units: the Town Square is the place. Put the lure in the cage, switch it on, and drop the cage the moment it walks in.');
+  for(const id in G.locs){const l=G.locs[id];if(l.hidden)continue;
+    if(l.surv)L.push(`We are picking up someone calling for help near the ${LOCS[id].name}. They sound alive. For now.`);
+    if(l.bonus)L.push(`A supply crate was dropped near the ${LOCS[id].name}. Food and water, if you can get to it.`)}
+  L.push(G.locs.hospital?'St Anne\'s Hospital still has a stocked pharmacy. If anyone is hurt, that is where the medicine is.':'Medicine is running low everywhere. Try the pharmacy, or any hospital you can reach.');
+  L.push('Rescue update: helicopters are grounded until the creature is contained. Repeat: they cannot land while it is free.');
+  L.push('Reminder: it hunts by sound. Walk, do not run. If someone knocks at night, do not answer.');
+  return L;
+}
+function numberLines(){const L=['Seven. Four. Nine. It is listening.','Do not sing. Do not hum. Seven. Four.','Subject L. Subject L. Find the boy. Seven.'];
+  for(const id in G.locs)if(G.locs[id].file)L.push(`Four. Two. The Listener files rest at the ${LOCS[id].name}. Four. Two.`);return shuffle(L)}
+const RADIO_CH=[
+  {f:'88.1',n:'Emergency Broadcast',lines:()=>shuffle(clueLines()),pitch:1,rate:1},
+  {f:'93.7',n:'Talk Radio: "Order! Order!" with Bernard Gristle',lines:()=>shuffle([...TALK]),pitch:.8,rate:1.02},
+  {f:'101.1',n:'Golden Oldies with DJ Smooth Kevin',lines:()=>shuffle([...DJ]),pitch:1.15,rate:1,music:true},
+  {f:'66.6',n:'??? (just numbers)',lines:numberLines,pitch:.55,rate:.8}];
+const TV_CH=[
+  {n:'📰 Survivor News',lines:()=>[...shuffle(clueLines()).slice(0,4),pick(NEWS_EXTRA)],pitch:1,draw:drawNews},
+  {n:'🦆 Captain Puddle',lines:()=>[...PUDDLE],pitch:1.6,rate:1.1,draw:drawPuddle},
+  {n:'🥫 Cooking with Tins',lines:()=>[...COOK],pitch:1.1,draw:drawCook},
+  {n:'⛅ The Fog Forecast',lines:()=>shuffle([...WEATHER]),pitch:.95,draw:drawWeather},
+  {n:'🎙️ Order! Order! (live debate)',lines:()=>shuffle([...TALK]),pitch:.8,draw:drawDebate}];
+const MEDIA={on:null,ch:0,tvch:0,i:0,lines:[],timer:null,tok:0,music:null};
+const TVC=document.createElement('canvas');TVC.width=320;TVC.height=180;const tvx=TVC.getContext('2d');
+const TV={cap:'',stat:0,ticker:''};
+function hush(){try{window.speechSynthesis&&speechSynthesis.cancel()}catch(e){}}
+function say(text,pitch,rate,done){
+  if(muted||!SET.voice||!window.speechSynthesis)return false;
+  try{hush();const u=new SpeechSynthesisUtterance(text.replace(/[\u{1F300}-\u{1FAFF}☀-➿]/gu,'').replace(/\.\.\./g,', '));
+    u.volume=SET.vol/100;u.pitch=pitch||1;u.rate=rate||1;u.onend=done;u.onerror=done;speechSynthesis.speak(u);return true}catch(e){return false}}
+function mediaStop(){MEDIA.tok++;clearTimeout(MEDIA.timer);hush();if(MEDIA.music){clearInterval(MEDIA.music);MEDIA.music=null}MEDIA.on=null;TV.cap=''}
+function mediaNext(){
+  const tok=++MEDIA.tok;clearTimeout(MEDIA.timer);if(!MEDIA.on)return;
+  const src=MEDIA.on==='radio'?RADIO_CH[MEDIA.ch]:TV_CH[MEDIA.tvch];
+  if(!MEDIA.lines.length||MEDIA.i>=MEDIA.lines.length){MEDIA.lines=src.lines();MEDIA.i=0}
+  const line=MEDIA.lines[MEDIA.i++]||'...';
+  if(MEDIA.on==='radio'){const el=$('#rtext');if(el){el.style.opacity=0;setTimeout(()=>{el.textContent=line;el.style.opacity=1},150)}}
+  else{TV.cap=line;const el=$('#tvcap');if(el)el.textContent=line}
+  const go=()=>{if(tok!==MEDIA.tok)return;clearTimeout(MEDIA.timer);MEDIA.timer=setTimeout(()=>{if(tok===MEDIA.tok)mediaNext()},1400)};
+  const spoke=say(line,src.pitch,src.rate,go);
+  MEDIA.timer=setTimeout(()=>{if(tok===MEDIA.tok)mediaNext()},spoke?line.length*110+6000:Math.max(4500,line.length*70));
+}
+function startMusic(){
+  const tune=[392,440,494,587,494,440,392,330,392,440,392,294,330,392,440,392];let k=0;
+  MEDIA.music=setInterval(()=>{if(muted)return;const f=tune[k++%tune.length];tone(f,.4,'triangle',.02*SET.vol/80);if(k%4===0)tone(f/2,.6,'sine',.015*SET.vol/80)},420)}
+function radioDlg(){
+  mediaStop();MEDIA.on='radio';const c=RADIO_CH[MEDIA.ch];
+  homeDlg(`<div class="ic">📻</div><div class="dial">${RADIO_CH.map((x,i)=>`<span class="${i===MEDIA.ch?'on':''}">${x.f}</span>`).join('')}</div>
+  <h3 style="margin:12px 0 8px;text-transform:none;letter-spacing:.02em">${c.f} · ${c.n}</h3>
+  <div class="rscreen" id="rtext">~ tuning ~</div>
+  <div style="margin-top:12px"><button class="btn" onclick="tune(-1)">◀ Tune</button><button class="btn" onclick="tune(1)">Tune ▶</button><button class="btn" onclick="mediaNext()">⏭ Next</button><button class="btn" onclick="toggleVoice()">${SET.voice?'🔊 Voice on':'🔇 Voice off'}</button></div>
+  <div><button class="btn" onclick="journalDlg()">📓 Journal</button><button class="btn amber" onclick="homeClose()">Switch off</button></div>`);
+  hiss(.4,.06,4000);if(c.music)startMusic();MEDIA.lines=[];MEDIA.i=0;MEDIA.timer=setTimeout(mediaNext,450);
+}
+function tune(d){MEDIA.ch=(MEDIA.ch+d+RADIO_CH.length)%RADIO_CH.length;radioDlg()}
+function toggleVoice(){SET.voice=!SET.voice;saveSet();if(!SET.voice)hush();if(MEDIA.on==='radio')radioDlg();else tvDlg()}
+function journalDlg(){mediaStop();
+  homeDlg(`<div class="ic">📓</div><h2 style="margin:0 0 8px">Your journal</h2><div class="log" style="margin-top:0;max-height:320px">${G.log.slice(-24).map(l=>`<p class="${l.cls||''}">${l.t}</p>`).join('')}</div><button class="btn" style="margin-top:10px" onclick="homeClose()">Close</button>`,true);
   setTimeout(()=>{const lg=document.querySelector('#dlgbox .log');if(lg)lg.scrollTop=lg.scrollHeight},30)}
+function tvDlg(){
+  mediaStop();MEDIA.on='tv';TV.stat=.45;TV.ticker=clueLines().join('     •     ');const c=TV_CH[MEDIA.tvch];
+  homeDlg(`<div id="tvwrap" style="background:#050505;border-radius:10px;padding:8px;border:3px solid #2a2a2e"></div>
+  <h3 style="margin:10px 0 4px;text-transform:none;letter-spacing:.02em">${c.n} <span class="dim small">· channel ${MEDIA.tvch+1} of ${TV_CH.length}</span></h3><p id="tvcap" style="min-height:52px;margin:6px 0"></p>
+  <button class="btn" onclick="tvCh(-1)">◀ Channel</button><button class="btn" onclick="tvCh(1)">Channel ▶</button><button class="btn" onclick="mediaNext()">⏭ Next</button><button class="btn" onclick="toggleVoice()">${SET.voice?'🔊 Voice on':'🔇 Voice off'}</button><button class="btn amber" onclick="homeClose()">Turn it off</button>`,true);
+  TVC.style.width='100%';TVC.style.display='block';TVC.style.borderRadius='4px';$('#tvwrap').appendChild(TVC);
+  hiss(.45,.08,5000);MEDIA.lines=[];MEDIA.i=0;MEDIA.timer=setTimeout(mediaNext,600);
+}
+function tvCh(d){MEDIA.tvch=(MEDIA.tvch+d+TV_CH.length)%TV_CH.length;tvDlg()}
+function wrapText(g,text,x,y,maxW,lh){const words=text.split(' ');let line='',lines=[];for(const w of words){const t2=line?line+' '+w:w;if(g.measureText(t2).width>maxW&&line){lines.push(line);line=w}else line=t2}lines.push(line);
+  if(lines.length>2){lines=lines.slice(0,2);lines[1]+='…'}lines.forEach((l,i)=>g.fillText(l,x,y+i*lh-(lines.length-1)*lh/2))}
+function tvDraw(t,dt){
+  const g=tvx,W=320,H=180;
+  if(TV.stat>0){TV.stat-=dt;const id=g.createImageData(W,H),d=id.data;for(let i=0;i<d.length;i+=4){const v=Math.random()*255|0;d[i]=d[i+1]=d[i+2]=v;d[i+3]=255}g.putImageData(id,0,0);return}
+  g.save();TV_CH[MEDIA.tvch].draw(g,t,W,H);g.restore();
+  if(TV.cap){g.fillStyle='rgba(0,0,0,.72)';g.fillRect(0,H-32,W,32);g.fillStyle='#fff';g.font='11px Georgia';g.textAlign='center';g.textBaseline='middle';wrapText(g,TV.cap,W/2,H-16,W-16,12)}
+  g.fillStyle='rgba(0,0,0,.12)';for(let y=0;y<H;y+=3)g.fillRect(0,y,W,1);
+}
+function drawNews(g,t,W,H){
+  const gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,'#1a2a5a');gr.addColorStop(1,'#0a1430');g.fillStyle=gr;g.fillRect(0,0,W,H);
+  g.fillStyle='#22386a';g.fillRect(190,24,112,70);g.fillStyle='#4a6a3a';g.fillRect(196,40,100,48);g.fillStyle='#c0392b';g.beginPath();g.arc(240+Math.sin(t)*10,62,4+Math.abs(Math.sin(t*4))*2,0,7);g.fill();
+  g.fillStyle='#fff';g.font='bold 9px sans-serif';g.textAlign='left';g.textBaseline='alphabetic';g.fillText('LIVE: THE CITY',196,35);
+  g.fillStyle='#2a2a34';g.fillRect(72,80,66,52);g.fillStyle='#e0b896';g.beginPath();g.arc(105,62,17,0,7);g.fill();g.fillStyle='#3a2a1a';g.beginPath();g.arc(105,55,17,Math.PI,0);g.fill();
+  g.fillStyle='#111';g.fillRect(98,60,3,3);g.fillRect(109,60,3,3);g.fillStyle='#7a2a2a';g.fillRect(100,70,10,2+(TV.cap?Math.abs(Math.sin(t*9))*4:0));
+  g.fillStyle='#e8e0d0';g.fillRect(101,81,8,20);g.fillStyle='#a02a2a';g.fillRect(103,83,4,16);
+  g.fillStyle='#6a4a2a';g.fillRect(30,116,172,26);g.fillStyle='#c0392b';g.fillRect(30,116,172,4);
+  g.fillStyle='#c0392b';g.fillRect(8,8,100,16);g.fillStyle='#fff';g.font='bold 10px sans-serif';g.fillText('SURVIVOR NEWS',14,20);
+  const tk=TV.ticker||'Stay inside. Stay quiet.';g.fillStyle='#f1c40f';g.fillRect(0,H-46,W,13);g.fillStyle='#111';g.font='bold 9px sans-serif';const tw=g.measureText(tk).width+W;g.fillText(tk,W-((t*40)%tw),H-36);
+}
+function drawPuddle(g,t,W,H){
+  g.fillStyle='#8fd0f0';g.fillRect(0,0,W,H);g.fillStyle='#fff';for(let k=0;k<3;k++){const c0=((t*15+k*120)%(W+60))-30;g.beginPath();g.arc(c0,32+k*12,14,0,7);g.arc(c0+16,28+k*12,12,0,7);g.fill()}
+  g.fillStyle='#6ac04a';g.fillRect(0,120,W,60);g.fillStyle='#3a8ad8';for(const px of[60,170,270]){g.beginPath();g.ellipse(px,134,28,7,0,0,7);g.fill()}
+  const x=(t*55)%(W+80)-40,b=Math.abs(Math.sin(t*4)),y=112-b*34;
+  g.fillStyle='#ffd23d';g.beginPath();g.ellipse(x,y,22,15,0,0,7);g.fill();g.beginPath();g.arc(x+16,y-16,10,0,7);g.fill();
+  g.fillStyle='#f08a24';g.beginPath();g.moveTo(x+24,y-17);g.lineTo(x+36,y-14);g.lineTo(x+24,y-11);g.fill();
+  g.fillStyle='#111';g.beginPath();g.arc(x+19,y-19,2,0,7);g.fill();g.fillStyle='#1a2a6a';g.beginPath();g.moveTo(x+5,y-24);g.lineTo(x+27,y-24);g.lineTo(x+16,y-37);g.fill();
+  if(b<.12){g.fillStyle='rgba(58,138,216,.85)';for(let k=0;k<6;k++){g.beginPath();g.arc(x-18+k*7,116-((k*7)%10),3,0,7);g.fill()}}
+  g.fillStyle='#fff';g.font='bold 13px sans-serif';g.textAlign='left';g.textBaseline='alphabetic';g.fillText('CAPTAIN PUDDLE',8,18);
+}
+function drawCook(g,t,W,H){
+  g.fillStyle='#e8e0d0';g.fillRect(0,0,W,H);g.strokeStyle='#cfc4b0';g.lineWidth=1;for(let x=0;x<W;x+=20){g.beginPath();g.moveTo(x,0);g.lineTo(x,110);g.stroke()}for(let y=0;y<110;y+=20){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke()}
+  g.fillStyle='#8a6a4a';g.fillRect(0,110,W,70);
+  g.fillStyle='#fff';g.fillRect(200,50,40,62);g.fillStyle='#e0b896';g.beginPath();g.arc(220,40,14,0,7);g.fill();g.fillStyle='#111';g.fillRect(214,37,3,3);g.fillRect(223,37,3,3);
+  g.fillStyle='#fff';g.fillRect(208,10,24,18);g.beginPath();g.arc(213,11,8,0,7);g.arc(227,11,8,0,7);g.fill();
+  const arm=Math.sin(t*6)*10;g.strokeStyle='#e0b896';g.lineWidth=5;g.beginPath();g.moveTo(205,70);g.lineTo(168+arm,90);g.stroke();g.lineWidth=1;
+  g.fillStyle='#555';g.fillRect(120,90,70,28);g.fillStyle='#333';g.fillRect(115,88,80,6);
+  g.fillStyle='rgba(255,255,255,.6)';for(let k=0;k<5;k++){const sy=(t*25+k*18)%60;g.beginPath();g.arc(138+k*10+Math.sin(t+k)*4,84-sy,5+sy/10,0,7);g.fill()}
+  for(let k=0;k<4;k++){g.fillStyle=['#c0392b','#2e86c1','#27ae60','#e67e22'][k];g.fillRect(20+k*22,92,16,22);g.fillStyle='#bbb';g.fillRect(20+k*22,92,16,3)}
+  g.fillStyle='#c0392b';g.font='bold 12px Georgia';g.textAlign='left';g.textBaseline='alphabetic';g.fillText('Cooking with Tins',8,16);
+}
+function drawWeather(g,t,W,H){
+  g.fillStyle='#2a5a8a';g.fillRect(0,0,W,H);g.fillStyle='#4a8a4a';g.beginPath();g.moveTo(30,22);g.lineTo(262,30);g.lineTo(292,140);g.lineTo(58,150);g.closePath();g.fill();
+  g.strokeStyle='#5ab0e0';g.lineWidth=4;g.beginPath();g.moveTo(40,90);g.bezierCurveTo(120,60,180,120,282,80);g.stroke();g.lineWidth=1;
+  for(let k=0;k<7;k++){const fx=(k*53+t*12)%(W+60)-30,fy=40+(k*37)%100;g.fillStyle='rgba(220,225,230,.6)';g.beginPath();g.arc(fx,fy,18,0,7);g.arc(fx+16,fy+4,14,0,7);g.fill()}
+  if(Math.sin(t*.7)>.85){g.fillStyle='#ff2a1a';g.beginPath();g.arc(150,96,2,0,7);g.arc(157,96,2,0,7);g.fill()}
+  g.fillStyle='#fff';g.font='bold 22px sans-serif';g.textAlign='left';g.textBaseline='alphabetic';g.fillText('3°',250,44);g.font='bold 11px sans-serif';g.fillText('THE FOG FORECAST',8,16);
+}
+function drawDebate(g,t,W,H){
+  g.fillStyle='#6a1a1a';g.fillRect(0,0,W,H);for(let x=0;x<W;x+=16){g.fillStyle='rgba(0,0,0,.18)';g.fillRect(x,0,6,H)}
+  g.fillStyle='#d9a441';g.fillRect(90,8,140,18);g.fillStyle='#2a1a0a';g.font='bold 12px Georgia';g.textAlign='center';g.textBaseline='alphabetic';g.fillText('ORDER! ORDER!',160,21);
+  const pod=(x,col,hat,talk)=>{g.fillStyle='#3a2a1a';g.fillRect(x-28,108,56,62);g.fillStyle=col;g.fillRect(x-20,70,40,40);g.fillStyle='#e0b896';g.beginPath();g.arc(x,58,15,0,7);g.fill();
+    if(hat){g.fillStyle='#111';g.fillRect(x-12,30,24,16);g.fillRect(x-18,44,36,4)}else{g.fillStyle='#ccc';g.beginPath();g.arc(x,52,15,Math.PI,0);g.fill()}
+    g.fillStyle='#111';g.fillRect(x-6,55,3,3);g.fillRect(x+3,55,3,3);g.fillStyle='#7a2a2a';g.fillRect(x-5,65,10,talk?2+Math.abs(Math.sin(t*10))*4:2)};
+  const who=Math.floor(t/3)%2;pod(80,'#2a4a8a',true,who===0&&TV.cap);pod(240,'#4a8a2a',false,who===1&&TV.cap);
+  g.fillStyle='#fff';g.font='9px sans-serif';g.fillText('Cllr Ploughshare',80,122);g.fillText('Dep. Mayor Wobble',240,122);
+  g.fillStyle='#8a5a2a';g.save();g.translate(160,140);g.rotate(Math.sin(t*3)*.4);g.fillRect(-14,-6,28,10);g.fillRect(-2,4,4,16);g.restore();
+}
 function planDlg(){
   const where={chains:'factory',battery:'petrol',speaker:'radio',flood:'firestation'};
   const row=(done,txt,hint)=>`<p style="margin:7px 0">${done?'<span class="green">✓</span>':'<span class="red">✗</span>'} ${txt}${hint&&!done?`<br><span class="small dim" style="margin-left:22px">${hint}</span>`:''}</p>`;
@@ -1391,6 +1565,7 @@ function homeRender(dt){
   const cam=R3.camera;cam.position.set(HM.px,1.6+(HM.moving?Math.sin(HM.bob)*.03:0),HM.pz);cam.rotation.set(pitch,yaw,0);
   R3.flash.intensity=0;R3.lantern.intensity=0;
   if(HM.lamp)HM.lamp.intensity=5+Math.sin(HM.t*7)*.2;
+  if(HM.tvTex){tvDraw(HM.t,dt);HM.tvTex.needsUpdate=true;HM.tvLight.intensity=1.3+Math.sin(HM.t*11)*.3+Math.random()*.25}
   for(const n of HM.npcs){const ud=n.mdl.userData,t=HM.t+n.i*1.7;const d=Math.hypot(HM.px-n.x,HM.pz-n.z);
     const ta=d<5?Math.atan2(-(HM.px-n.x),-(HM.pz-n.z)):Math.sin(t*.2)*1.2;let da=ta-n.mdl.rotation.y;while(da>Math.PI)da-=6.283;while(da<-Math.PI)da+=6.283;n.mdl.rotation.y+=da*Math.min(1,dt*3);
     if(ud.tail){ud.tail.rotation.y=Math.sin(t*12)*.6;continue}
