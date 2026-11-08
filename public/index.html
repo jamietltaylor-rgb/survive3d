@@ -418,6 +418,7 @@ function pickLoc(){
     <div class="small">Usually has: ${loot}</div>
     <div class="small dim">${l.visits===0?'Untouched':l.visits<3?`Raided ${l.visits}×`:'<span class="red">Picked almost clean</span>'}</div>
     ${L.far?'<div class="small" style="color:#8fc8e8">🌆 Across the city: a long walk, so less time there</div>':''}${KEYITEMS[id]&&!G.trap[KEYITEMS[id]]?'<div class="small amber">🪤 Might have something for the trap</div>':''}
+    ${l.breed?`<div class="small" style="color:#e07a6a">${BREEDS[l.breed].ic} A ${BREEDS[l.breed].n} nests here.<br><span class="dim">Strong: ${BREEDS[l.breed].strong}. Weak: ${BREEDS[l.breed].weak}.</span></div>`:''}
     ${l.tunnel?'<div class="small green">🕳️ Linked by tunnel. Safer entry, more time.</div>':''}
     ${l.surv?'<div class="small amber">👂 You\'ve heard someone calling from here</div>':''}
     ${l.bonus?'<div class="small green">📦 Supply crate dropped nearby!</div>':''}</div>`}
@@ -466,7 +467,7 @@ function endDay(){
     if(p.hp>0){p.hp=Math.min(100,p.hp);continue}
     if(p.id==='you'){G.log.push(...lines.map(t=>({t})));return finish(youCause||'starved')}
     G.people=G.people.filter(q=>q!==p);G.deaths.push(p.name);lines.push(`🕯️ ${p.name} didn't make it through the night.`)}
-  G.day++;G.acted=false;G.storm=false;G.tmsg='';
+  breedNight(lines);G.day++;G.acted=false;G.storm=false;G.tmsg='';
   updateTunnelLinks();resetEnergy();
   addLog(`— Day ${G.day} —`,'day');lines.forEach(t=>addLog(t));
   if(G.day===2)addLog('📻 A new voice on the radio: "...this is Dr. Hale, from Project Listener. It can\'t be killed. But it CAN be caged. You\'ll need heavy chains, a car battery, a loudspeaker and a floodlight. Build a cage, call it in with noise, drop the cage, and keep the light on it..." (Check the plan on your notice board.)');
@@ -1593,7 +1594,7 @@ function clueLines(){
     if(l.bonus)L.push(`A supply crate was dropped near the ${LOCS[id].name}. Food and water, if you can get to it.`)}
   L.push(G.locs.hospital?'St Anne\'s Hospital still has a stocked pharmacy. If anyone is hurt, that is where the medicine is.':'Medicine is running low everywhere. Try the pharmacy, or any hospital you can reach.');
   L.push('Rescue update: helicopters are grounded until the creature is contained. Repeat: they cannot land while it is free.');
-  L.push('Reminder: it hunts by sound. Walk, do not run. If someone knocks at night, do not answer.');
+  L.push('Reminder: it hunts by sound. Walk, do not run. If someone knocks at night, do not answer.');L.push(...breedLines());
   return L;
 }
 const PUDDLE_OPEN=["@pud Hello boys and girls! It's me, Captain Puddle!","@ron And me! Ronnie the Frog! Ribbit!"],PUDDLE_BYE=["@pud Captain Puddle has to go now. Remember: whisper, waddle, and wait!","@ron Bye bye! Ribbit! ...Quiet ribbit."];
@@ -1851,7 +1852,7 @@ function torchFlash(){
   if(S.surv&&S.surv.mimic&&hit(S.surv.x,S.surv.y,150))return revealMimic('surv');
   if(S.surv&&!S.surv.mimic&&hit(S.surv.x,S.surv.y,150)){S.surv.annoyed=true;showMsg('"Argh! Get that out of my eyes! I\'m a PERSON!"',2.6);return}
   if(S.follower&&!S.follower.mimic&&hit(S.follower.x,S.follower.y,150)){showMsg(`${S.follower.name}: "Hey! Watch where you point that!"`,2.2);return}
-  if(!c.disguised&&!(c.stun>0)&&c.dormant<=0&&hit(c.x,c.y,140)){c.stun=7;c.state='flee';pickFlee(c);showMsg('It recoils from the light and flees!',2.5);tone(400,.5,'sawtooth',.03,.4);return}
+  if(!c.disguised&&!(c.stun>0)&&c.dormant<=0&&hit(c.x,c.y,140)){c.stun=7*(S.br?S.br.stun:1);c.state='flee';pickFlee(c);showMsg('It recoils from the light and flees!',2.5);tone(400,.5,'sawtooth',.03,.4);return}
   showMsg('The torch flares... nothing there.',1.2);
 }
 function npcMesh(id){
@@ -2103,13 +2104,14 @@ function build3D(){
   if(S.surv){const g=S.surv.mimic?mimicMesh(S.surv):npcMesh(S.surv.id);g.position.set(S.surv.x*U,0,S.surv.y*U);g.rotation.y=Math.random()*6;sc.add(g);R3.surv=g;
     const hs=textSprite('...help...','#e6c88c',.4);hs.position.set(S.surv.x*U,2.6,S.surv.y*U);hs.material.opacity=0;sc.add(hs);R3.help=hs}
   // creature
-  R3.cre=creatureMesh();sc.add(R3.cre);R3.creLast=null;
+  R3.cre=creatureMesh();if(S.br)tintCreature(R3.cre,S.br);sc.add(R3.cre);R3.creLast=null;
 }
 
 /* ----- run ----- */
 function timeAsk(id,inTunnel){
   const go=d=>inTunnel?`closeDlg();stopTunnel();startScav('${id}',${d})`:`closeDlg();travelGame('${id}',${d})`;
-  dlg(`<div class="ic">${LOCS[id].ic}</div><h2 style="margin:0 0 10px">When do you go to ${id==='trapsite'?'set the trap':'the '+LOCS[id].name}?</h2>
+  const Bq=G.locs[id]&&G.locs[id].breed?BREEDS[G.locs[id].breed]:null;
+  dlg(`<div class="ic">${LOCS[id].ic}</div>${Bq?`<p class="small" style="color:#e07a6a;margin:0 0 8px">${Bq.ic} A <b>${Bq.n}</b> nests here. Strong: ${lc1(Bq.strong)}. Weak: ${lc1(Bq.weak)}.</p>`:''}<h2 style="margin:0 0 10px">When do you go to ${id==='trapsite'?'set the trap':'the '+LOCS[id].name}?</h2>
   <div class="card click" onclick="${go(true)}"><b>🌞 Go now, in daylight</b><div class="small dim" style="margin-top:4px">You can see the empty city clearly. It's sluggish in the day and hears much less, but it can <b>spot you from far away</b>. Keep out of its sight.</div></div>
   <div class="card click" style="margin-top:10px" onclick="${go(false)}"><b>🌙 Wait until dark</b><div class="small dim" style="margin-top:4px">Pitch black except your torch. It can't see far, but it <b>hears every sound</b>. Move quietly.</div></div>
   <button class="btn" style="margin-top:12px" onclick="closeDlg();${inTunnel?'TU.dlg=false':''}">Cancel</button>`);
@@ -2123,7 +2125,7 @@ function startScav(id,day){
   S={id,L,tun,day:!!day,...mp,px:(mp.spawn[0]+.5)*T,py:(mp.spawn[1]+.5)*T,hidden:null,bag:[],cap:8+(has('dex')?4:0),
      time:(LOCS[id].far?120:150)+(tun?60:0),hunt:false,rings:[],noiseT:0,search:null,follower:null,trail:[],trailT:0,msg:'',msgT:0,
      paused:false,running:true,dlg:false,seenHide:false,flashCd:0,flashT:0,beatT:0,helpT:0,cryT:rnd(10,20),t:0,dumped,bob:0,moving:false,flick:0};
-  let cxp,cyp;
+  S.br=breedOf(id);let cxp,cyp;
   if(tun){cxp=1.5*T;cyp=1.5*T}
   else{let k=0;do{const r=pick(mp.rooms);cxp=(ri2(r[0],r[2])+.5)*T;cyp=(ri2(r[1],r[3])+.5)*T;k++}while((solid(mp.m[Math.floor(cyp/T)*MW+Math.floor(cxp/T)])||Math.hypot(cxp-S.px,cyp-S.py)<500)&&k<300)}
   S.cre={x:cxp,y:cyp,state:'wander',tx:cxp,ty:cyp,field:null,tt:-1,distT:0,dormant:tun?16:2,wait:0,lostT:0,lastX:0,lastY:0,anim:0,stun:0,disguised:false};
@@ -2150,7 +2152,7 @@ function blocked(x,y,r){return solid(tileAt(x-r,y-r))||solid(tileAt(x+r,y-r))||s
 function los(x0,y0,x1,y1){const d=Math.hypot(x1-x0,y1-y0),n=Math.ceil(d/10);for(let i=1;i<n;i++){const t=i/n;if(tileAt(x0+(x1-x0)*t,y0+(y1-y0)*t)===2)return false}return true}
 function bfsFrom(ti){const d=new Int16Array(MW*MH).fill(-1),q=[ti];d[ti]=0;let h=0;
   while(h<q.length){const c=q[h++],x=c%MW,y=(c/MW)|0;for(const [a,b] of DIRS){const nx=x+a,ny=y+b;if(nx<0||ny<0||nx>=MW||ny>=MH)continue;const n=ny*MW+nx;if(d[n]>=0||solid(S.m[n]))continue;d[n]=d[c]+1;q.push(n)}}return d}
-function creMove(c,tx,ty,spd,dt){
+function creMove(c,tx,ty,spd,dt){if(S&&c===S.cre&&S.br)spd*=S.br.spd*(S.day&&S.br.dayMul?S.br.dayMul:1);
   const tt=tileIdx(tx,ty);
   if(tt!==c.tt||c.distT<=0){c.tt=tt;c.field=bfsFrom(tt);c.distT=.6}
   c.distT-=dt;
@@ -2166,7 +2168,7 @@ function randomFloor(){for(let k=0;k<400;k++){const x=ri2(0,MW-1),y=ri2(0,MH-1);
 function noise(x,y,r,col){
   S.rings.push({x,y,r:0,R:r,life:1,col:col||'255,255,255'});
   const c=S.cre,d=Math.hypot(c.x-x,c.y-y);
-  if(d<r*(S.day?.55:1)){if(c.dormant>0)c.dormant=0;if(c.state!=='chase'){c.state='investigate';c.tx=x;c.ty=y;c.wait=0}}
+  if(d<r*(S.day?.55:1)*(S.br?S.br.hear:1)){if(c.dormant>0)c.dormant=0;if(c.state!=='chase'){c.state='investigate';c.tx=x;c.ty=y;c.wait=0}}
 }
 function findTarget(){
   if(S.hidden)return{type:'unhide'};
@@ -2325,7 +2327,7 @@ function updScav(dt){
   else{
     if(S.surv&&!S.surv.mimic&&S.surv.mode==='flee'){c.state='npc';creMove(c,S.surv.x,S.surv.y,165,dt);if(Math.hypot(c.x-S.surv.x,c.y-S.surv.y)<26)npcTaken()}else{
     if(c.state==='npc'){c.state='wander';wanderTarget(c)}
-    const vis=(S.mode==='run'?230:S.mode==='sneak'?105:150)*(S.day?2.3:1);
+    const vis=(S.mode==='run'?230:S.mode==='sneak'?105:150)*(S.day?2.3:1)*(S.br?S.br.see*(S.day&&S.br.dayMul?.6:1):1);
     const sees=!S.hidden&&pd<vis&&los(c.x,c.y,S.px,S.py);
     if(sees||(S.hunt&&!S.hidden)){if(c.state!=='chase'&&sees){scream();showMsg('IT SEES YOU. RUN!',2)}c.state='chase';c.lostT=0;c.lastX=S.px;c.lastY=S.py}
     if(c.state==='chase'){
@@ -2344,6 +2346,7 @@ function updScav(dt){
     if(S.follower&&Math.hypot(c.x-S.follower.x,c.y-S.follower.y)<22){
       G.lost++;scream();addLog(`🕯️ ${S.follower.name} was taken in the dark.`);showMsg(`${S.follower.name} was taken!`,3);S.follower=null;if(R3.fol){R3.scene.remove(R3.fol);R3.fol=null}}
   }
+  if(S.br&&S.br.shake&&c.dormant<=0&&!c.disguised&&!c.caged){S.thudT=(S.thudT||0)-dt;if(S.thudT<=0){S.thudT=.75;if(pd<560)tone(36,.2,'sine',.07*(1-pd/560))}}
   if(pd<280&&c.dormant<=0&&!c.disguised&&!(c.stun>0)){S.beatT-=dt;if(S.beatT<=0){S.beatT=.35+pd/280*.9;heartbeat()}}
   for(const r of S.rings){r.life-=dt*1.4;r.r=r.R*(1-r.life);if(r.life<=0&&r.mesh){R3.scene.remove(r.mesh);r.mesh.material.dispose()}}
   S.rings=S.rings.filter(r=>r.life>0);
@@ -2447,13 +2450,13 @@ function hudScav(){
   cx.fillStyle=S.hatch?'#e0a040':'#50e080';cx.fillRect(eh.x-3.5,eh.y-3.5,7,7);
   if(S.follower){const f=pos(S.follower.x,S.follower.y);cx.fillStyle='#8fc8ff';cx.beginPath();cx.arc(f.x,f.y,2.5,0,7);cx.fill()}
   // creature blip: lights up when the sweep passes it, then fades
-  const cb=pos(c.x,c.y),jam=c.disguised&&cb.d<12/U;
+  const cb=pos(c.x,c.y),jam=c.disguised&&cb.d<12/U;if(S.br&&S.br.radar&&cb.d>range*S.br.radar){cb.out=true;cb.hid=true}
   if(jam){for(let k=0;k<40;k++){cx.fillStyle=`rgba(150,255,190,${Math.random()*.5})`;cx.fillRect(rcx+rnd(-RR,RR),rcy+rnd(-RR,RR),rnd(1,4),1.5)}}
   let ba=cb.a%(Math.PI*2);if(ba<0)ba+=Math.PI*2;
   let age=(sw-ba)%(Math.PI*2);if(age<0)age+=Math.PI*2;age/=SW;
   if(!c.disguised&&S.blipAge!==undefined&&age<S.blipAge&&!cb.out&&cb.d<range*.6)tone(cb.d<range*.3?1100:880,.06,'sine',.025);
   S.blipAge=age;
-  const al=c.disguised?0:Math.max(0,1-age/2.4)*(cb.out?.45:1);
+  const al=c.disguised||cb.hid?0:Math.max(0,1-age/2.4)*(cb.out?.45:1);
   if(al>0){cx.fillStyle=`rgba(255,50,40,${al})`;cx.shadowColor='#ff3020';cx.shadowBlur=10*al;cx.beginPath();cx.arc(cb.x,cb.y,cb.out?3:4.5,0,7);cx.fill();cx.shadowBlur=0}
   cx.restore();
   // you
@@ -2771,20 +2774,25 @@ function playIntro(done){
   const sci1=mk(coat(),-1.4,-3.2,Math.PI*.9,'tapper',4.6),sci2=mk(coat(),-5,0,-.6,'desk',2.6),sci3=mk(coat(),5,0,.6,'desk',4.2),sci4=mk(coat(),-6.2,3.8,-1.2,'desk'),guard=mk(humanoid(0x2a3a5a),3,5,Math.PI,'guard',3.6);sci2.fallAt=13.2;sci4.cower=true;
   const clip=box(.25,.02,.32,std({color:0xc8a060}),-1.25,1.1,-3.35);
   const torchL=new THREE.SpotLight(0xfff0d0,0,18,.45,.5,1.2);sc.add(torchL);sc.add(torchL.target);
-  const cre=creatureMesh();cre.position.set(tx,0,tz);cre.rotation.y=0;sc.add(cre);const cst={state:'wander',anim:0,stun:0};
-  const shards=[];
+  const cre=creatureMesh();cre.position.set(tx,0,tz);cre.rotation.y=Math.PI;sc.add(cre);const cst={state:'wander',anim:0,stun:0};
+  const shards=[];const muzzle=new THREE.PointLight(0xffd080,0,10,1.5);sc.add(muzzle);
+  const bloodTex=canvasTex(128,128,(g,w,h)=>{g.clearRect(0,0,w,h);g.fillStyle='rgba(90,6,6,.95)';g.beginPath();g.arc(64,64,34,0,7);g.fill();for(let i=0;i<22;i++){const a=rnd(0,6.3),r=rnd(30,60);g.beginPath();g.arc(64+Math.cos(a)*r,64+Math.sin(a)*r,rnd(3,10),0,7);g.fill()}});bloodTex.userData.keep=false;
+  const bloodM=()=>new THREE.MeshBasicMaterial({map:bloodTex,transparent:true,depthWrite:false,color:0xffffff});
+  const pools=[];window.bloodPool=(x,z,size)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(1,1),bloodM());m.rotation.x=-Math.PI/2;m.rotation.z=rnd(0,6);m.position.set(x,.02+pools.length*.001,z);m.scale.setScalar(.2);m.userData.to=size;sc.add(m);pools.push(m)};
+  window.bloodSplat=(x,z)=>{for(let k=0;k<5;k++){const m=new THREE.Mesh(new THREE.PlaneGeometry(1,1),bloodM());m.rotation.x=-Math.PI/2;m.position.set(x+rnd(-1.2,1.2),.021,z+rnd(-1.2,1.2));m.scale.setScalar(rnd(.2,.55));sc.add(m)}};
+  window.bloodWall=(x,z)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(1.4,1.6),bloodM());m.position.set(x,1.4,z);m.rotation.y=Math.PI;sc.add(m)};
   CS={running:true,t:0,last:performance.now(),done,sc,ppl,cre,cst,stage:0,subs:'',sub2:'',black:0,flick:0,
-    cam:[[0,0,0,[0,1.8,-4]],[6.5,0,0,[-1.4,1.3,-4.2]],[9,0,0,[0,2.3,-5.5]],[12.5,0,0,[0,1.6,-4]],[17,0,0,[-2.5,1,2]],[22.5,0,0,[0,1.4,9.6]],[27,0,0,[0,1.7,9.8]]]};
+    cam:[[0,0,0,[0,1.8,-4]],[6.5,0,0,[-1.4,1.3,-4.2]],[9,0,0,[0,2.3,-5.5]],[12.3,0,0,[2.6,1.3,4.6]],[17,0,0,[-2.5,1,2]],[22.5,0,0,[0,1.4,9.6]],[27,0,0,[0,1.7,9.8]]]};
   const sk=document.createElement('button');sk.id='csSkip';sk.className='btn';sk.textContent='Skip ⏭';sk.style.cssText='position:fixed;right:18px;bottom:18px;z-index:60';sk.onclick=()=>csEnd();document.body.appendChild(sk);
   gl.style.display='block';cv.style.display='block';resizeCv();R3.renderer.setSize(innerWidth,innerHeight,false);R3.camera.aspect=innerWidth/innerHeight;R3.camera.updateProjectionMatrix();
   const subAt=[[0,'Hale Research Facility. Sub-level 4.'],[3.2,'Project Listener.'],[5.6,'“Careful. It can hear everything.”'],[8.4,''],[9.6,'CONTAINMENT BREACH'],[13,''],[17.5,''],[22,'Within the hour, it was in the city.'],[26,'']];
   const S2=CS;
   function frame(now){
     if(!S2.running)return;const dt=Math.min(.05,(now-S2.last)/1000);S2.last=now;S2.t+=dt;const t=S2.t;
-    for(const [at,s] of subAt)if(t>=at)S2.subs=s;
+    if(!(S2.subT>0))for(const [at,s] of subAt)if(t>=at)S2.subs=s;
     // camera path
     const K=S2.cam;let i=0;while(i<K.length-2&&t>K[i+1][0])i++;const a=K[i],b=K[i+1],f=clamp((t-a[0])/(b[0]-a[0]),0,1),e=f*f*(3-2*f);
-    const camPos=[[0,2.4,7],[-2.4,1.7,-1.2],[0,2.2,-2.2],[1.5,1.9,0.5],[3,3.2,8.5],[1,2.2,-1.5],[0,2,1]];
+    const camPos=[[0,2.4,7],[-2.4,1.7,-1.2],[0,2.2,-2.2],[-2.6,2.3,-3.6],[3,3.2,8.5],[1,2.2,-1.5],[0,2,1]];
     const pa=camPos[i],pb=camPos[i+1];R3.camera.position.set(pa[0]+(pb[0]-pa[0])*e,pa[1]+(pb[1]-pa[1])*e+(S2.shake||0)*rnd(-.05,.05),pa[2]+(pb[2]-pa[2])*e);
     const la=a[3],lb=b[3];R3.camera.lookAt(la[0]+(lb[0]-la[0])*e,la[1]+(lb[1]-la[1])*e,la[2]+(lb[2]-la[2])*e);S2.shake=Math.max(0,(S2.shake||0)-dt*2);
     // story beats
@@ -2797,41 +2805,50 @@ function playIntro(done){
     beat(6,11.2,()=>{tank.visible=false;crack.visible=false;S2.shake=2;glassSound();hiss(.9,.35,7000);tankL.color.set(0xff4020);
       for(let k=0;k<40;k++){const m=new THREE.Mesh(new THREE.PlaneGeometry(rnd(.06,.2),rnd(.06,.2)),new THREE.MeshBasicMaterial({color:0xbfe8f0,transparent:true,opacity:.7,side:THREE.DoubleSide}));const an=rnd(-1.2,1.2)+Math.PI/2;
         m.position.set(tx+Math.cos(an)*1.5,rnd(.5,4),tz+Math.sin(an)*1.5);m.userData.v=new THREE.Vector3(Math.cos(an)*rnd(2,6),rnd(0,3),Math.sin(an)*rnd(2,6));sc.add(m);shards.push(m)}
-      for(const p of ppl)if(p.role!=='guard'&&!p.cower){p.run=true;p.tx=rnd(-1,1);p.tz=9}sci4.m.scale.y=.62;sci4.m.rotation.y=.8;cst.out=true});
-    beat(7,13.5,()=>{guard.aim=true;torchL.intensity=40;cst.flinch=1.2;tone(200,.3,'sawtooth',.03,1.6)});
-    beat(8,15,()=>{guard.run=true;guard.tx=1;guard.tz=9.2;torchL.intensity=0;cst.hunt=sci2;S2.subs2=1});
+      for(const p of ppl)if(p.role!=='guard'&&!p.cower&&p!==sci1){p.run=true;p.tx=rnd(-1,1);p.tz=9}sci4.m.scale.y=.62;sci4.m.rotation.y=.8;cst.out=true;S2.queue=[sci1,guard,sci2,sci4]});
+    beat(7,12.5,()=>{if(!guard.dead){guard.aim=true;S2.subs='“Shoot it! SHOOT IT!”';S2.subT=1.6}});
     beat(9,21,()=>{cst.toDoor=true});
     // tapping scientist
-    if(sci1.tap&&!sci1.run){sci1.m.userData.arms[1].rotation.x=-1.3+Math.sin(t*14)*.15;if(Math.floor(t*4)%2===0&&t<5.5&&!S2.tk){S2.tk=1;tone(1800,.04,'sine',.02);setTimeout(()=>S2.tk=0,240)}}
+    if(sci1.tap&&!sci1.run&&!sci1.dead&&!sci1.fly){sci1.m.userData.arms[1].rotation.x=-1.3+Math.sin(t*14)*.15;if(Math.floor(t*4)%2===0&&t<5.5&&!S2.tk){S2.tk=1;tone(1800,.04,'sine',.02);setTimeout(()=>S2.tk=0,240)}}
+    // the guard opens fire
+    if(guard.aim&&!guard.dead&&!guard.fly){S2.shotT=(S2.shotT||0)-dt;if(S2.shotT<=0&&(S2.shots||0)<7){S2.shotT=.22;S2.shots=(S2.shots||0)+1;muzzle.intensity=30;muzzle.position.set(guard.x-Math.sin(guard.m.rotation.y)*.7,1.45,guard.z-Math.cos(guard.m.rotation.y)*.7);hiss(.12,.4,5000);tone(90,.12,'square',.07,.4);cst.hit=.18}}
+    muzzle.intensity=Math.max(0,muzzle.intensity-dt*260);
     // people
     for(const p of ppl){const ud=p.m.userData;if(p.gone){p.m.visible=false;continue}
+      if(p.fly){const f=p.fly;p.x+=f.vx*dt;p.z+=f.vz*dt;f.y+=f.vy*dt;f.vy-=14*dt;p.x=clamp(p.x,-11.6,11.6);p.z=clamp(p.z,-9.6,9.6);p.m.rotation.x-=dt*7;
+        if(f.y<=.18&&f.vy<0){p.fly=null;p.dead=true;p.m.rotation.set(-Math.PI/2,rnd(0,6),0);p.m.position.set(p.x,.16,p.z);bloodPool(p.x,p.z,1.3);bloodSplat(p.x+f.vx*.08,p.z+f.vz*.08);tone(80,.25,'square',.05,.5)}
+        else p.m.position.set(p.x,f.y,p.z);continue}
+      if(p.dead){continue}
       if(p.fallAt&&t>p.fallAt&&!p.fell){p.fell=true;p.run=false;p.m.rotation.x=-1.35;p.m.position.y=.25;tone(140,.2,'square',.03,.6)}
-      if(p.fell&&!p.gone){ud.arms[0].rotation.x=-2+Math.sin(t*9)*.3}
-      if(p.run){const dx=p.tx-p.x,dz=p.tz-p.z,d=Math.hypot(dx,dz);if(d>.2){const sp=p.spd*dt;p.x+=dx/d*sp;p.z+=dz/d*sp;p.m.rotation.y=Math.atan2(-dx,-dz)+Math.PI;const sw=Math.sin(t*14)*.8;ud.legs[0].rotation.x=sw;ud.legs[1].rotation.x=-sw;ud.arms[0].rotation.x=-sw;ud.arms[1].rotation.x=sw}
+      if(p.fell){ud.arms[0].rotation.x=-2+Math.sin(t*9)*.3}
+      if(p.run){const dx=p.tx-p.x,dz=p.tz-p.z,d=Math.hypot(dx,dz);if(d>.2){const sp=p.spd*dt;p.x+=dx/d*sp;p.z+=dz/d*sp;p.m.rotation.y=Math.atan2(-dx,-dz);const sw=Math.sin(t*14)*.8;ud.legs[0].rotation.x=sw;ud.legs[1].rotation.x=-sw;ud.arms[0].rotation.x=-sw;ud.arms[1].rotation.x=sw}
         else if(p.tz>8.5){p.gone=true}p.m.position.set(p.x,0,p.z)}
-      else if(p.aim){p.m.rotation.y=Math.atan2(cre.position.x-p.x,cre.position.z-p.z)+Math.PI;ud.arms[0].rotation.x=-1.4}}
-    if(guard.aim&&!guard.run){torchL.position.set(guard.x,1.5,guard.z);torchL.target.position.copy(cre.position);torchL.target.position.y=1.8}
+      else if(p.aim){p.m.rotation.y=Math.atan2(-(cre.position.x-p.x),-(cre.position.z-p.z));ud.arms[0].rotation.x=-1.5;ud.arms[1].rotation.x=-1.4}}
     // the creature
     cst.anim+=dt;let sp=0;
-    if(cst.look&&!cst.out){const ang=Math.atan2(sci1.x-cre.position.x,sci1.z-cre.position.z);cre.rotation.y+=(ang-cre.rotation.y)*Math.min(1,dt*4);cst.state='investigate'}
+    const face=(dx,dz,k)=>{const ta=Math.atan2(-dx,-dz);let da=ta-cre.rotation.y;while(da>Math.PI)da-=6.283;while(da<-Math.PI)da+=6.283;cre.rotation.y+=da*Math.min(1,dt*k)};
+    if(cst.look&&!cst.out){face(sci1.x-cre.position.x,sci1.z-cre.position.z,4);cst.state='investigate'}
     if(cst.out){cst.state='chase';let tgt=null;
-      if(cst.flinch>0){cst.flinch-=dt;cst.stun=cst.flinch;sp=0}
-      else if(cst.toDoor)tgt=[0,10.5];
-      else{if(!cst.hunt||cst.hunt.gone)cst.hunt=ppl.find(p=>!p.gone&&!p.taking&&(p.fell||p.cower))||null;tgt=cst.hunt?[cst.hunt.x,cst.hunt.z]:[0,6]}
-      if(tgt){const dx=tgt[0]-cre.position.x,dz=tgt[1]-cre.position.z,d=Math.hypot(dx,dz);sp=Math.min(d,(cst.toDoor?6:4.6)*dt)/dt;if(d>.1){cre.position.x+=dx/d*sp*dt;cre.position.z+=dz/d*sp*dt;cre.rotation.y=Math.atan2(dx,dz)}
-        if(cst.hunt&&!cst.hunt.gone&&d<1.1&&!cst.toDoor){const v=cst.hunt;v.taking=true;S2.black=.85;scream();setTimeout(()=>{v.gone=true},250);cst.hunt=null}}
+      if(cst.toDoor)tgt=[0,10.5];
+      else{while(S2.queue.length&&(S2.queue[0].dead||S2.queue[0].gone||S2.queue[0].fly))S2.queue.shift();cst.hunt=S2.queue[0]||null;tgt=cst.hunt?[cst.hunt.x,cst.hunt.z]:[-1,5]}
+      if(tgt){const dx=tgt[0]-cre.position.x,dz=tgt[1]-cre.position.z,d=Math.hypot(dx,dz),v=(cst.toDoor?6:cst.hunt===sci1?7.5:4.8)*(cst.hit>0?.35:1);
+        cst.hit=Math.max(0,(cst.hit||0)-dt);cst.stun=cst.hit>0?.3:0;
+        sp=d>.9||cst.toDoor?v:0;if(sp){cre.position.x+=dx/d*sp*dt;cre.position.z+=dz/d*sp*dt}face(dx,dz,8);
+        if(cst.hunt&&d<1.15&&!cst.toDoor){const vt=cst.hunt;S2.red=.75;S2.shake=1.6;scream();const ax=dx/(d||1),az=dz/(d||1);
+          vt.fly={vx:ax*rnd(5,7),vz:az*rnd(5,7),vy:4.5,y:1};vt.run=false;vt.aim=false;bloodSplat(vt.x,vt.z);if(vt===guard)muzzle.intensity=0;cst.hunt=null}}
       if(!cst.toDoor){cre.position.x=clamp(cre.position.x,-11,11);cre.position.z=clamp(cre.position.z,-9,9)}}
-    if(cst.toDoor&&cre.position.z>9.3){door.rotation.x=-1.2;door.position.y=.3;cre.visible=false;if(!S2.boom){S2.boom=1;S2.shake=2;tone(45,.8,'square',.06,.4);hiss(.6,.3,1500)}}
+    if(cst.toDoor&&cre.position.z>9.3){door.rotation.x=-1.2;door.position.y=.3;cre.visible=false;if(!S2.boom){S2.boom=1;S2.shake=2;tone(45,.8,'square',.06,.4);hiss(.6,.3,1500);bloodWall(0.5,9.75)}}
     animCreature(cre.userData,sp,cst,dt);
     for(const m of shards){m.position.addScaledVector(m.userData.v,dt);m.userData.v.y-=9.8*dt;if(m.position.y<.02){m.position.y=.02;m.userData.v.set(0,0,0)}m.rotation.x+=dt*5}
     // lights
     if(S2.alarm){const p=(Math.sin(t*6)+1)/2;red1.intensity=p*14;red2.intensity=(1-p)*14;white.intensity=t>14&&t<21?(Math.random()<.15?0:1.2):2.5;for(const s of strips)s.visible=white.intensity>.5;amb.intensity=.12}
-    S2.black=Math.max(0,S2.black-dt*1.2);
+    S2.black=Math.max(0,S2.black-dt*1.2);S2.red=Math.max(0,(S2.red||0)-dt*1.1);for(const m of pools){const k=m.scale.x;if(k<m.userData.to)m.scale.setScalar(Math.min(m.userData.to,k+dt*.35))}
+    if(S2.subT>0){S2.subT-=dt;if(S2.subT<=0)S2.subs=''}
     R3.renderer.render(sc,R3.camera);
     // overlay text
     const W=innerWidth/HS(),H=innerHeight/HS();cx.clearRect(0,0,W,H);
     const bars=Math.min(1,t/1.2)*H*.09;cx.fillStyle='#000';cx.fillRect(0,0,W,bars);cx.fillRect(0,H-bars,W,bars);
-    const fade=t<1?1-t:t>25?Math.min(1,(t-25)/1.2):S2.black;if(fade>0){cx.fillStyle=`rgba(0,0,0,${fade})`;cx.fillRect(0,0,W,H)}
+    const fade=t<1?1-t:t>25?Math.min(1,(t-25)/1.2):S2.black;if(S2.red>0){cx.fillStyle=`rgba(150,0,0,${S2.red*.55})`;cx.fillRect(0,0,W,H)}if(fade>0){cx.fillStyle=`rgba(0,0,0,${fade})`;cx.fillRect(0,0,W,H)}
     if(S2.subs){cx.textAlign='center';cx.textBaseline='middle';const big=S2.subs==='CONTAINMENT BREACH';cx.font=big?'bold 30px sans-serif':'20px Georgia';cx.fillStyle=big?`rgba(255,70,50,${.6+.4*Math.sin(t*10)})`:'#e8e2d0';cx.fillText(S2.subs,W/2,H-bars-34)}
     if(t>26.2){const L=['Nobody knew what it was.','Only that it hunts by sound.','Find somewhere to hide. Board it up.','And whatever you do... stay quiet.'];cx.textAlign='center';cx.textBaseline='middle';cx.font='22px Georgia';
       L.forEach((l,k)=>{const a=clamp((t-26.4-k*1.4)/.8,0,1);cx.fillStyle=`rgba(232,226,208,${a})`;cx.fillText(l,W/2,H/2-45+k*34)})}
@@ -2913,6 +2930,109 @@ RADIO_CH.push(
   {f:'104.9',n:'Sports: The Hiding Olympics',lines:()=>[...SPORT[0],...flat(SPORT.slice(1))],pitch:1,rate:1.1},
   {f:'107.3',n:'Ask Dr Patience (phone-in)',lines:()=>[...flat(DOC)],pitch:1,rate:.95});
 RADIO_CH.sort((a,b)=>parseFloat(a.f)-parseFloat(b.f));MEDIA.ch=RADIO_CH.findIndex(c=>c.f==='88.1');
+
+/* ===================== the creature breeds: a different one nests in each building ===================== */
+const BREEDS={
+  listener:{n:'The Listener',ic:'👂',col:0x6a5a52,sc:1,spd:1,hear:1,see:1,stun:1,strong:'Hunts by sound',weak:'Bright light makes it flee'},
+  sprinter:{n:'Sprinter',ic:'💨',col:0x9a6a44,sc:.9,spd:1.5,hear:.55,see:1,stun:1.7,strong:'Terrifyingly fast. You cannot outrun it',weak:'Half deaf: only loud noises reach it, and the torch stuns it for longer'},
+  brute:{n:'Brute',ic:'🦍',col:0x3e3e44,sc:1.4,spd:.66,hear:1,see:1,stun:.3,shake:true,strong:'Huge. Your torch barely bothers it',weak:'Slow and heavy: you can outrun it, and you feel its footsteps coming'},
+  shrieker:{n:'Shrieker',ic:'🔊',col:0xa89888,sc:1,spd:1.05,hear:1.9,see:.2,stun:1,strong:'Hears almost twice as far as the others',weak:'Practically blind: if you sneak, it will walk right past you'},
+  stalker:{n:'Night Stalker',ic:'🌑',col:0x17171d,sc:1.05,spd:1.15,hear:1,see:1.9,stun:1,dayMul:.4,strong:'Sees you from much further away in the dark',weak:'Hates daylight: go in the day and it barely moves'},
+  crawler:{n:'Crawler',ic:'🕷️',col:0x5a3626,sc:.72,spd:1.25,hear:1.2,see:.8,stun:2.6,radar:.35,strong:'Small and quick. Your radar only picks it up when it is close',weak:'Terrified of light: one flash sends it running for ages'}};
+const lc1=x=>x[0].toLowerCase()+x.slice(1);const breedOf=id=>BREEDS[(G.locs[id]&&G.locs[id].breed)||'listener'];
+function breedNight(lines){
+  if(G.day<3)return;const free=Object.keys(G.locs).filter(id=>!G.locs[id].breed&&!G.locs[id].hidden);if(!free.length)return;
+  if(!(Math.random()<.5||G.day-(G.lastBreed||0)>=3))return;
+  const used=Object.values(G.locs).map(l=>l.breed).filter(Boolean),kinds=Object.keys(BREEDS).filter(k=>k!=='listener'),fresh=kinds.filter(k=>!used.includes(k));
+  const id=pick(free),b=pick(fresh.length?fresh:kinds),B=BREEDS[b];G.locs[id].breed=b;G.lastBreed=G.day;
+  lines.push(`🥚 It has been breeding. Something new is nesting in the ${LOCS[id].name}: a ${B.ic} <b>${B.n}</b>. Strong: ${lc1(B.strong)}. Weak: ${lc1(B.weak)}.`)}
+function breedLines(){const L=[];for(const id in G.locs){const b=G.locs[id].breed;if(!b)continue;const B=BREEDS[b];
+  L.push(`Warning. A ${B.n} is nesting in the ${LOCS[id].name}. ${B.strong}. But remember: ${lc1(B.weak)}.`)}return L}
+function tintCreature(g,B){g.scale.setScalar(B.sc);g.traverse(o=>{if(o.isMesh&&o.material&&o.material.map&&o.material.color&&o.material.color.getHex()===0x6a5a52){o.material=o.material.clone();o.material.color.setHex(B.col)}})}
+
+/* ===================== more TV channels ===================== */
+Object.assign(VOICES,{docu:{n:'Documentary narrator',p:.82,r:.9,v:0},cctv:{n:'Inspector Moss',p:.9,r:1,v:2},terry:{n:'Terry Chuckles',p:1.15,r:1.2,v:1},
+  dez:{n:'Desmond Dazzle (quiz host)',p:1,r:1.1,v:0},sheila:{n:'Sheila (contestant)',p:1.4,r:1.05,v:4},rita:{n:'Rita (Barricade Street)',p:1.3,r:1,v:1},mal:{n:'Malcolm (Barricade Street)',p:.8,r:.95,v:3}});
+VOX_GROUPS[1][1].push('docu','cctv','terry','dez','sheila','rita','mal');
+Object.assign(TEST_LINE,{docu:'It does not see you. It hears you.',cctv:'Camera four. Two thirteen in the morning.',terry:'Here is a classic!',dez:'For one tin of peaches...',sheila:'Is it stay inside?',rita:'Malcolm, the door!',mal:'Not now, Rita.'});
+function docuLines(){
+  const base=["@docu Inside Project Listener. Tonight: the creature that came out of the dark.",
+   "@docu It began as a research project, deep under the Hale Research Facility. The goal: build something that could find anyone, anywhere, by the sound they make.",
+   "@docu It has no proper eyes. Its head is mostly ear. It can hear a heartbeat through a wall, and a footstep from across a building.",
+   "@docu Walking makes a little noise. Running makes a lot. Sneaking, slowly, makes almost none. That is the difference between being found and not.",
+   "@docu Its one weakness is light. A sudden bright flash overwhelms it. It recoils, and runs, for a few precious seconds.",
+   "@docu In daylight it is sluggish and hears far less. But it can see further. At night, it is the opposite: almost blind, and listening to everything.",
+   "@docu Scientists believe it cannot be killed. But the facility's own notes suggest it can be trapped: a cage, a loud lure to call it in, and a floodlight to hold it still.",
+   "@docu Perhaps most chilling of all: it can copy voices. Some survivors report hearing a friend calling for help. Look closely before you trust anyone in the dark.",
+   "@docu And now, it seems, it is breeding. Different buildings, different creatures. Each one with its own strengths. And its own weaknesses."];
+  const br=Object.entries(G.locs).filter(([id,l])=>l.breed).map(([id,l])=>{const B=BREEDS[l.breed];return`@docu In the ${LOCS[id].name}, a new kind: the ${B.n}. ${B.strong}. Its weakness? ${B.weak}.`});
+  return[...base.slice(0,3),...br,...base.slice(3)]}
+const CCTV=["@cctv This is Inspector Moss, with the security footage from the night of the escape. Camera four. Sub-level four.",
+ "@cctv Two oh nine a.m. A scientist drops a clipboard right beside the tank. On the tape, you can see the creature turn its head. Instantly.",
+ "@cctv Two eleven. The first crack appears in the glass. The alarm doesn't go off for another forty seconds. Nobody had ever tested it.",
+ "@cctv Two twelve. The glass gives way. Everything after that happens very fast.",
+ "@cctv A guard opens fire. Seven shots. You can see every one hit. It barely slows down.",
+ "@cctv Two fifteen. Camera nine, the loading bay. It goes straight through the doors. Not around them. Through them.",
+ "@cctv Two forty. Camera fourteen, the main road, heading into the city. That's the last clear picture we have of it.",
+ "@cctv Notice something. On every single camera, it stops whenever an alarm sounds, and turns towards the noise. Sound draws it in. Remember that.",
+ "@cctv One survivor from the facility says the tank was built to hold it for ten years. It held for six weeks.",
+ "@cctv We'll play the footage again. If you have children in the room, perhaps don't let them watch."];
+const HIDDEN=scenes([
+ "@terry Welcome to Oops! Caught Hiding, the show where you send in your funniest hiding moments! I'm Terry Chuckles!",
+ "@terry First up: Barry from the east side, hiding in his wardrobe. Lovely technique, Barry. Shame about the coat hanger. Listen to that clatter! Oh, Barry.",
+ "@terry Here's Linda, who has disguised herself as a lamp. Hold still, Linda. Hold still. Oh, she's sneezed. Bless you, Linda. Run, Linda.",
+ "@terry This next clip is a family of five all trying to hide under the same table. That's eight legs sticking out, and one dog, who has given everybody away.",
+ "@terry Here's Kevin. Not Smooth Kevin from the radio, a different Kevin. He's built an incredible barricade. Lovely work. ...He's built it on the outside of the door.",
+ "@terry A gentleman here who tried to sneak to the kitchen in the dark and stepped on every single squeaky toy his grandchildren own. Count them with me. Nine. Nine squeaky toys!",
+ "@terry We'd love to play you our studio audience's reaction, but they're all laughing silently. Look at them. Look at that silent laughter. Beautiful.",
+ "@terry Clip of the week! A lady hiding in a bin, who has been there so long a family of pigeons has moved in on top of her. She says they're good company.",
+ "@terry Send in your clips! Our address is: anywhere, really. We'll find you. That came out wrong. That's all from Oops! Caught Hiding!"]);
+const QUIZ=scenes([
+ ["@dez Good evening and welcome to Stay In or Go Out, the quiz where the prize is a tin of peaches and the stakes are... everything! Our contestant tonight is Sheila!","@sheila Hello! Hi Mum! Don't go out!"],
+ ["@dez Sheila, question one: you hear a knock at the door at three in the morning. Do you: A, open it. B, open it. C, open it a little bit. Or D, stay inside?","@sheila Is it... D?","@dez It IS D! Well done!"],
+ ["@dez Question two: the creature is attracted by: A, loud noises. B, loud noises. C, very loud noises. Or D, tap dancing?","@sheila I'm going to say D, Desmond.","@dez ...Sheila, tap dancing IS a very loud noise. I'll allow it."],
+ ["@dez Sheila, you can phone a friend.","@sheila I'll phone my sister, Pat.","@dez Pat, you're on the air!","@caller I'm not answering this, Sheila, it could be the creature doing your voice. Goodbye."],
+ ["@dez Fifty-fifty, Sheila. We'll take away two wrong answers. Which leaves you with: stay inside, and stay inside.","@sheila Oh, that's a tough one."],
+ ["@dez The final question, for the tin of peaches! What's the safest thing to do tonight?","@sheila Stay inside?","@dez Is that your final answer?","@sheila ...Yes.","@dez SHEILA, YOU'VE WON A TIN OF PEACHES! Please don't cheer. Please, quietly. Lovely."],
+ ["@dez Ask the audience! Audience, what do you think? ...The audience have all hidden under their seats, Sheila. I think that's an answer in itself."]]);
+const SOAP=scenes([
+ ["@rita Malcolm. We need to talk.","@mal Not now, Rita. I'm guarding the door.","@rita You've been guarding the door for three weeks, Malcolm.","@mal And has anything come through it, Rita?","@rita ...No.","@mal Exactly."],
+ ["@rita I found the last biscuit, Malcolm.","@mal The custard cream?","@rita ...I ate it.","@mal How could you, Rita! After everything we've been through!"],
+ ["@mal Rita, I have something to tell you. I'm not who you think I am.","@rita Oh my goodness, are you the creature? Copying Malcolm's voice?","@mal No! I'm a vegetarian. I've been giving my corned beef to the dog."],
+ ["@rita Who's that at the window, Malcolm?","@mal It's your sister, Rita. She wants to come in.","@rita My sister lives in Spain, Malcolm.","@mal ...Then who's that at the window?","@rita DUN DUN DUNNN."],
+ ["@mal I've boarded up every window in this house, Rita. Every single one.","@rita Then how do we get any light in, Malcolm?","@mal ...I didn't think this through, Rita."],
+ ["@rita Next time on Barricade Street: will Malcolm ever leave the door? Will Rita find another biscuit? And who keeps rearranging the tins?"]]);
+function drawDocu(g,t,W,H){g.fillStyle='#0a0f14';g.fillRect(0,0,W,H);
+  g.strokeStyle='rgba(120,200,255,.25)';g.lineWidth=1;for(let i=0;i<6;i++){const r=((t*30+i*30)%180);g.beginPath();g.arc(220,92,r,0,7);g.stroke()}
+  g.fillStyle='#1a1e22';g.beginPath();g.ellipse(220,70,16,22,0,0,7);g.fill();g.fillRect(212,88,16,50);g.fillRect(200,98,40,6);g.fillRect(206,136,6,30);g.fillRect(228,136,6,30);
+  g.fillStyle='#ff3020';g.beginPath();g.arc(214,66,2,0,7);g.arc(226,66,2,0,7);g.fill();
+  g.fillStyle='#9fd0ff';g.font='bold 11px sans-serif';g.textAlign='left';g.textBaseline='alphabetic';g.fillText('INSIDE PROJECT LISTENER',10,18);
+  g.font='9px monospace';g.fillStyle='rgba(159,208,255,.7)';['HEARING: EXTREME','SIGHT: POOR','LIGHT: WEAKNESS','KILLABLE: NO','CAGEABLE: YES'].forEach((l,i)=>g.fillText(l,12,44+i*15))}
+function drawCCTV(g,t,W,H){g.fillStyle='#1a1d1a';g.fillRect(0,0,W,H);const n=Math.floor(t/4)%4;
+  g.strokeStyle='#556';g.strokeRect(20,20,280,120);g.fillStyle='#2a2e2a';g.fillRect(20,110,280,30);g.fillStyle='#3a4a4a';g.fillRect(140,40,40,70);
+  if(n<2){g.strokeStyle='rgba(200,240,255,.5)';g.beginPath();g.moveTo(160,50);g.lineTo(150,70);g.lineTo(165,85);g.stroke()}
+  const x=n>=2?40+((t*40)%240):160;g.fillStyle='#0a0a0a';g.fillRect(x-5,66,10,40);g.beginPath();g.arc(x,60,7,0,7);g.fill();
+  if(Math.sin(t*3)>0){g.fillStyle='#e02020';g.beginPath();g.arc(16,16,4,0,7);g.fill()}
+  g.fillStyle='#ddd';g.font='10px monospace';g.textAlign='left';g.textBaseline='alphabetic';g.fillText(`CAM 0${4+n}  02:1${(Math.floor(t)%9)}:${String(Math.floor(t*7)%60).padStart(2,'0')}`,26,32);
+  for(let i=0;i<300;i++){g.fillStyle=`rgba(255,255,255,${Math.random()*.07})`;g.fillRect(Math.random()*W,Math.random()*H,2,1)}}
+function drawHidden(g,t,W,H){g.fillStyle='#4a2a6a';g.fillRect(0,0,W,H);for(let i=0;i<12;i++){g.fillStyle=`hsl(${(i*30+t*60)%360},70%,60%)`;g.beginPath();g.arc(i*28+10,14,5,0,7);g.fill()}
+  g.fillStyle='#2a1a3a';g.fillRect(40,40,160,90);g.fillStyle='#6a5a3a';g.fillRect(60,60,40,66);g.fillStyle='#8a7a5a';g.fillRect(64,64,32,58);
+  const pk=Math.sin(t*2)>0;g.fillStyle='#e0b896';if(pk){g.beginPath();g.arc(98,80,7,0,7);g.fill()}g.fillStyle='#222';g.fillRect(90,118,10,6);
+  g.fillStyle='#e0b896';g.beginPath();g.arc(255,70,14,0,7);g.fill();g.fillStyle='#d03a6a';g.fillRect(242,86,26,40);g.fillStyle='#111';g.fillRect(248,66,3,3);g.fillRect(258,66,3,3);
+  g.fillStyle='#7a2a2a';g.beginPath();g.arc(255,76,5,0,Math.PI);g.fill();
+  g.fillStyle='#fff';g.font='bold 12px sans-serif';g.textAlign='center';g.textBaseline='alphabetic';g.fillText('OOPS! CAUGHT HIDING',160,34)}
+function drawQuiz(g,t,W,H){g.fillStyle='#0a0a3a';g.fillRect(0,0,W,H);for(let i=0;i<8;i++){g.strokeStyle=`rgba(120,140,255,${.15+.1*Math.sin(t*3+i)})`;g.beginPath();g.arc(160,60,20+i*16,0,7);g.stroke()}
+  g.fillStyle='#e8c040';g.font='bold 13px sans-serif';g.textAlign='center';g.textBaseline='alphabetic';g.fillText('STAY IN OR GO OUT?',160,22);
+  const A=['A: Open it','B: Open it','C: Open it a bit','D: Stay inside'];A.forEach((a,i)=>{const x=i%2?168:12,y=96+Math.floor(i/2)*24;g.fillStyle=i===3&&Math.sin(t*4)>0?'#2a8a3a':'#1a2a7a';g.fillRect(x,y,140,18);g.strokeStyle='#8aa';g.strokeRect(x,y,140,18);g.fillStyle='#fff';g.font='10px sans-serif';g.textAlign='left';g.fillText(a,x+6,y+13)})}
+function drawSoap(g,t,W,H){g.fillStyle='#d8c8a8';g.fillRect(0,0,W,H);g.fillStyle='#8a6a4a';g.fillRect(0,120,W,60);g.fillStyle='#6a4a2a';g.fillRect(240,30,50,90);for(let i=0;i<4;i++){g.fillStyle='#8a6a3a';g.save();g.translate(265,50+i*18);g.rotate(.1*(i%2?1:-1));g.fillRect(-30,-4,60,8);g.restore()}
+  g.fillStyle='#7a3a5a';g.fillRect(40,90,140,40);g.fillStyle='#5a2a3a';g.fillRect(40,80,140,14);
+  const fig=(x,col,hair,talk)=>{g.fillStyle=col;g.fillRect(x-12,72,24,40);g.fillStyle='#e0b896';g.beginPath();g.arc(x,60,11,0,7);g.fill();g.fillStyle=hair;g.beginPath();g.arc(x,55,11,Math.PI,0);g.fill();g.fillStyle='#7a2a2a';g.fillRect(x-3,65,6,talk?2+Math.abs(Math.sin(t*10))*3:1.5)};
+  fig(90,'#c04060','#8a3a1a',TV.who==='rita');fig(140,'#3a5a7a','#3a3a3a',TV.who==='mal');
+  g.fillStyle='#fff';g.font='italic bold 13px Georgia';g.textAlign='left';g.textBaseline='alphabetic';g.fillText('Barricade Street',8,18)}
+TV_CH.splice(1,0,{n:'🔬 Inside Project Listener',lines:docuLines,pitch:.82,draw:drawDocu},{n:'📼 CCTV: The Night It Escaped',lines:()=>[...CCTV],pitch:.9,draw:drawCCTV});
+TV_CH.push({n:'😂 Oops! Caught Hiding',lines:()=>[HIDDEN[0][0],...shuffle(HIDDEN.slice(1,-1)).flat(),HIDDEN[HIDDEN.length-1][0]],pitch:1.15,draw:drawHidden},
+  {n:'💰 Stay In or Go Out? (quiz)',lines:()=>[...QUIZ[0],...shuffle(QUIZ.slice(1)).flat()],pitch:1,draw:drawQuiz},
+  {n:'🏠 Barricade Street (soap)',lines:()=>shuffle([...SOAP.slice(0,-1)]).flat().concat(SOAP[SOAP.length-1]),pitch:1.2,draw:drawSoap});
 
 titleScreen();
 </script>
