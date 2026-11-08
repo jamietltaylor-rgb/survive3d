@@ -76,6 +76,7 @@ label{font-size:14px;margin-right:12px;cursor:pointer}
 #tpause{position:absolute;top:calc(max(10px,env(safe-area-inset-top)) + 40px);right:max(10px,env(safe-area-inset-right));pointer-events:auto;width:44px;height:44px;font-size:18px}
 #rotHint{position:absolute;top:42%;left:10%;right:10%;text-align:center;color:#fff;background:rgba(0,0,0,.72);padding:14px;border-radius:8px;font:16px Georgia,serif;display:none}
 @media (pointer:coarse){.btn{padding:13px 18px}.mini{padding:9px 12px}h1{margin-top:4vh}}
+.eq{display:flex;gap:4px;justify-content:center;align-items:flex-end;height:24px;margin-top:10px}.eq i{width:6px;background:#a6f0b8;border-radius:1px;animation:eqb .6s ease-in-out infinite alternate}@keyframes eqb{from{height:3px}to{height:24px}}
 .rscreen{background:#0c140f;border:1px solid #2a4a32;color:#a6f0b8;font-family:'Courier New',monospace;padding:14px;min-height:100px;border-radius:6px;text-align:left;font-size:16px;line-height:1.5;transition:opacity .15s}
 .dial{display:flex;justify-content:space-between;font:13px 'Courier New',monospace;color:#5a7a62;border-bottom:2px solid #2a4a32;padding:4px 6px}
 .dial span.on{color:#ffd870;text-shadow:0 0 8px #ffb040}
@@ -1375,30 +1376,203 @@ function suppliesDlg(){const tools=(G.tools.shovel?'🪏 Shovel ':'')+(G.tools.p
   const parts=Object.keys(PARTS).map(k=>`<span style="opacity:${G.trap[k]?1:.35}">${PARTS[k].ic} ${PARTS[k].n}${G.trap[k]?' ✓':''}</span>`).join(' &nbsp; ');
   homeDlg(`<div class="ic">📦</div><h2 style="margin:0 0 10px">Your supplies</h2><div class="inv" style="justify-content:center">${invHTML()}</div><p style="margin-top:14px"><b>Tools:</b> ${tools}</p><p><b>Trap parts:</b><br>${parts}</p><p class="small dim">🪣 Dirt piled up from digging: ${G.dirt}/${dirtMax()} · Strange files: ${G.files}/3</p><button class="btn" onclick="homeClose()">Close</button>`)}
 /* ----- radio & TV ----- */
-const TALK=['Welcome back to Order! Order! I\'m Bernard Gristle. Today\'s big question: should the creature be made to pay council tax? Councillor Mavis Ploughshare says yes. "It\'s been living here rent-free for weeks."',
-  'The Moderately Quiet Party has proposed banning crisp packets. Their leader announced the policy in a whisper so quiet that nobody heard it, which the party is calling a huge success.',
-  'Deputy Mayor Trevor Wobble has promised "a cage in every garden by Christmas". When asked who would build them, he said "the garden gnomes, obviously," and then ran away.',
-  'The Loud and Proud Alliance want to scare the creature off with a brass band. Their last rally lasted eleven seconds. They\'re calling it "a short tour".',
-  'Caller on line two: "Hi Bernard, long-time listener, first-time hider. If the council can\'t stop the creature, can they at least stop the pigeons?"',
-  'Breaking news: the Minister for Puddles has resigned after stepping in one. He says he will "reflect on his position, and also his socks".',
-  'New poll: forty percent of people think the creature should be trapped. Thirty percent think it should be reasoned with. And thirty percent were hiding in a wardrobe and couldn\'t answer.',
-  'The Sensible Sandwich Party has unveiled its manifesto. It\'s a sandwich. Critics say it lacks detail. Supporters say it lacks crusts, and that\'s what really matters.',
-  'Councillor Ploughshare and Deputy Mayor Wobble debated for two hours about whether to have a debate. They\'ll meet again next week to decide whether that counted.',
-  'A listener writes: "Dear Bernard, my neighbour keeps knocking on my door at night asking to be let in. Should I vote for him?" Bernard says: do NOT open that door. And never vote for anyone who knocks at three in the morning.',
-  'The Spoons Not Forks Coalition has a bold plan: hit the creature with a very big spoon. Experts say the spoon would need to be roughly the size of a bus. The Coalition says "then we\'ll need a bigger drawer".',
-  'The town council has voted to rename the creature "Gary" to make it less scary. Gary was unavailable for comment, because Gary is a seven-foot monster.',
-  'Deputy Mayor Wobble has denied hiding in the council fridge for six days. He made the statement from inside the council fridge.',
-  'Councillor Ploughshare has proposed a curfew: everybody indoors by dark. Her opponents have proposed an even earlier curfew: everybody indoors by lunch. The debate continues, quietly.'];
-const DJ=['You\'re listening to Golden Oldies with DJ Smooth Kevin. That was "Don\'t Make a Sound" by The Whispers.',
-  'Coming up next: "Tiptoe Through the Hallway" by Gentle Feet. A real classic.',
-  'A dedication from Maya to Tom: "Please stop snoring, it can hear you." Lovely stuff.',
-  'Here\'s one for all you hiders out there: "Hold Your Breath (Till Morning)" by The Wardrobe Kids.',
-  'Kevin\'s tip of the night: if you\'re dancing, dance in socks. Much quieter.',
-  'That was "Can\'t Stop the Fog" by The Grey Mornings. Shout out to everyone still out there. Stay safe, stay quiet.'];
-const PUDDLE=['Hello boys and girls! It\'s me, Captain Puddle!','Remember: if you hear something big outside, be as quiet as a duck in a library!','Captain Puddle\'s top tip: never open the door at night. Not even for bread.','Splish! Splash! Oh no, that was far too loud! Shhhh!','Let\'s count the puddles together. One, two, three... what\'s that in the fog? Never mind! Four!','Captain Puddle has to go now. Remember: whisper, waddle, and wait!'];
-const COOK=['Welcome to Cooking with Tins! Today: beans. On beans. With a side of beans.','Step one: open the tin very, very quietly. If it goes pop, run.','Step two: eat it cold. Fires make smoke, and smoke makes trouble.','Chef\'s secret: peaches in syrup count as a pudding AND a drink.','Never waste the water from a tin. Out here, every drop counts.','Next week: soup you can eat with a fork, for when all the spoons are gone.'];
-const WEATHER=['Tonight\'s forecast: fog, fog and more fog, with a hundred percent chance of something lurking.','Wind: light and whispery. Visibility: about as far as you can throw a tin of beans.','Tomorrow: grey in the morning, grey in the afternoon, and dark by teatime. Stay in.','Pollen count: low. Monster count: one. Please plan accordingly.','Weekend outlook: still foggy. Still don\'t go out after dark.'];
-const NEWS_EXTRA=['Our reporter is broadcasting from a cupboard. She says it is actually quite cosy.','Experts confirm the creature hates bright light. A torch in its eyes may save your life.','The shops are all still closed. Taking supplies is technically frowned upon, but nobody is checking.'];
+// ===== who's talking (each gets their own voice) =====
+const VOICES={
+  bern:{n:'Bernard Gristle',p:.8,r:1,v:0},mavis:{n:'Cllr Mavis Ploughshare',p:1.4,r:1.08,v:1},trev:{n:'Deputy Mayor Trevor Wobble',p:1,r:1.22,v:2},
+  nige:{n:'Nigel Blusterby (Loud and Proud)',p:.62,r:.95,v:3},sand:{n:'Sandra Crust (Sensible Sandwich Party)',p:1.2,r:.92,v:4},spoon:{n:'Colonel Derek Ladle (Spoons Not Forks)',p:.7,r:1.12,v:5},
+  caller:{n:'Caller',p:1.15,r:1.05,v:6},kev:{n:'Smooth Kevin',p:.9,r:.9,v:7},
+  pud:{n:'Captain Puddle',p:1.6,r:1.1,v:1},ron:{n:'Ronnie the Frog',p:1.95,r:1.25,v:3},
+  chef:{n:'Chef Marguerite',p:1.15,r:1,v:4},asst:{n:'Derek',p:.85,r:1,v:2},
+  den:{n:'Dennis Drizzle',p:.95,r:1,v:0},pam:{n:'Pamela Steadman',p:1.1,r:1,v:1},gav:{n:'Gavin (in a cupboard)',p:1,r:1.15,v:2}};
+function parseLine(l){const m=/^@(\w+) ([\s\S]*)$/.exec(l);return m&&VOICES[m[1]]?{k:m[1],who:VOICES[m[1]],t:m[2]}:{t:l}}
+const scenes=a=>a.map(x=>Array.isArray(x)?x:[x]);
+
+// ===== 93.7 / Order! Order! — politicians being funny entirely by accident =====
+const TALK=scenes([
+ ["@bern Good evening and welcome to Order! Order! I'm Bernard Gristle. Tonight: the creature, the council, and why the minutes of last Tuesday's council meeting just say “AAAAAH” forty times.","@mavis Bernard, I have the minutes here. It's actually forty-one. I think accuracy matters."],
+ ["@trev I want to be very clear with the public. I have a three-point plan.","@bern Go on.","@trev Point one: stay calm. Point two: stay indoors. Point three... I wrote point three on my hand and it's smudged. I think it says “milk”."],
+ ["@trev People of this city, I will never hide from my responsibilities.","@bern Deputy Mayor, can you confirm where you're broadcasting from tonight?","@trev ...A cupboard. But it's a very responsible cupboard."],
+ ["@nige The Loud and Proud Alliance believes this creature is all bark and no bite.","@bern Nigel, it has bitten a bus.","@nige Right. Well. Then it's a lot of bark AND a lot of bite. Which, if anything, proves my point about it being very... thorough."],
+ ["@sand The Sensible Sandwich Party has fully costed every single one of its policies.","@bern What does your creature plan cost?","@sand Three pounds forty. That's for the sandwich. We haven't got to the creature bit yet."],
+ ["@bern We've had a leaked memo from the Deputy Mayor's office. It reads: “eggs, bread, the good cheese, do NOT tell Mavis about the bunker.”","@trev That is a shopping list.","@bern And the bunker?","@trev ...The bunker is a type of cheese."],
+ ["@trev I'll now read my prepared statement. “The council takes this threat extremely seriously. Pause for applause.”","@trev ...","@bern There's no audience, Trevor.","@trev I know that NOW, Bernard."],
+ ["@spoon Colonel Derek Ladle, Spoons Not Forks. The fork has had its chance. Forty years of forks, and where has it got us?","@bern How exactly would a spoon help with the creature?","@spoon I'm not saying it would help. I'm saying it would be a spoon."],
+ ["@mavis My new slogan is: “Mavis Ploughshare: Nobody Has Been Eaten On My Watch.”","@bern Councillor, three people have gone missing on the north side since you took over.","@mavis On my WATCH, Bernard. My watch stopped in March."],
+ ["@caller Hi Bernard, it's Pauline from the flats. I'll vote for whoever brings back the bonfire night fireworks.","@trev Pauline, I promise you the biggest fireworks display this city has ever seen!","@bern It hunts by sound, Deputy Mayor.","@trev ...Very quiet fireworks. Mime fireworks. I'll point at the sky and say “ooh”. You're welcome, Pauline."],
+ ["@nige I have here a petition with ten thousand signatures, demanding that the creature leave the city.","@bern Has anyone actually delivered it to the creature?","@nige We posted it through what we thought was its letterbox.","@bern And?","@nige It ate the petition. We're calling that a response."],
+ ["@trev I'd like to correct something I said yesterday. I described the creature as “eight feet tall, with terrible manners”. I've since been told that's actually my description of the Mayor, from my diary.","@bern The Mayor is listening, Trevor.","@trev Hello, sir. Lovely manners. Lovely height."],
+ ["@sand A vote for the Sensible Sandwich Party is a vote for common sense.","@bern And what is your policy on the creature?","@sand Lettuce. Hear me out.","@bern No."],
+ ["@bern A quick correction. Yesterday we described Councillor Ploughshare as “fearless in the face of danger”. That should have read “fearless in the face of a danger form”. She is very good at forms."],
+ ["@mavis I'm proud to announce a brand-new early warning system for the whole city.","@bern How does it work?","@mavis When the creature is nearby, Gordon screams.","@bern Who is Gordon?","@mavis Gordon IS the system, Bernard."],
+ ["@trev My opponent wants to raise taxes, close the library, and let the creature roam free. I want the exact opposite.","@bern So you want to lower taxes, open the library, and...","@trev And let the creature roam... unfree. Roam in a non-free way. Expensively. You know what I mean."],
+ ["@caller Bernard, it's Ken, long-time listener. Is it true the Deputy Mayor once tried to arrest a wheelie bin?","@trev It was dark, and it was moving towards me in a very bin-like manner. I stand by it."],
+ ["@nige Under a Loud and Proud government, the creature would be met with a wall of sound! Brass bands on every corner!","@bern Nigel, what happened at your last brass band rally?","@nige ...We're looking for a new tuba player. And a new trumpet player. And a new rally."],
+ ["@mavis I'd like to apologise for my leaflets. They were meant to say “Vote Ploughshare: She Will Never Let You Down.” The printer left out the word “never”.","@bern How many did you print?","@mavis Forty thousand. And I've already posted them all. And honestly, the response has been very positive."],
+ ["@trev I've always said this creature is a problem we must solve together, as one big community.","@bern Deputy Mayor, last week you built a nine-foot wall around your house.","@trev A very COMMUNITY-minded wall. There's a bench on the outside."],
+ ["@spoon We have now tested the giant spoon.","@bern And?","@spoon It is now a giant bent spoon. We're calling it the Spoon Mark Two. It's our best spoon yet."],
+ ["@bern Breaking news: the Minister for Puddles has stepped in a puddle and resigned. Moments later he was reappointed as Minister for Puddles, because, and I'm quoting the council here, “who knows more about them now?”"],
+ ["@trev I've been accused of making promises I can't keep. That is simply untrue, and I promise you it will never happen again."],
+ ["@mavis I would never use the creature for political gain.","@bern Councillor, your poster shows you standing next to the creature giving a thumbs up.","@mavis That photo was taken before we knew it was the creature. We thought it was a very tall postman. He looked lovely in the dark."],
+ ["@sand Our candidate for the east side has a great deal of experience.","@bern It's a ham sandwich, Sandra.","@sand It has been in politics a lot longer than some people, Bernard."],
+ ["@trev Let me be absolutely clear. I have never, ever been afraid of the creature.","@bern Then why did you scream a moment ago?","@trev I saw a moth.","@bern A moth.","@trev A very big moth. With teeth. Bernard, I think I need to stop the interview."],
+ ["@bern Results of tonight's phone poll: who do you trust most to handle the creature? Councillor Ploughshare, eleven votes. Deputy Mayor Wobble, nine votes. And “the creature itself”, fourteen votes. Ladies and gentlemen, that's embarrassing."],
+ ["@trev I'd like to thank the hard-working people of this city. Both of you.","@bern There are more than two people left, Deputy Mayor.","@trev Sorry, I meant “all of you”. I was reading out the attendance list from my last town hall meeting."],
+ ["@mavis A public safety message. If you see the creature, do not approach it, do not shout at it, and do not, under any circumstances, try to sell it double glazing. We have lost three salesmen this way."],
+ ["@bern Councillor, you've accused the Deputy Mayor of hiding in the council fridge.","@mavis He was in there for six days, Bernard.","@trev I was guarding the yoghurts. Somebody had to. And may I say, not one yoghurt was lost."],
+ ["@nige My opponents call me loud. I call it being heard.","@bern Nigel, you're whispering.","@nige It's DARK outside, Bernard. I'm not an idiot."],
+ ["@trev Earlier I called the creature “the worst thing ever to happen to this city”. I'd like to apologise to the people who designed the one-way system, who rightly feel that title is still theirs."],
+ ["@sand If elected, we'll put a sandwich in every home.","@bern Is that funded?","@sand It's mostly bread, Bernard. Bread is very affordable. We'll worry about the filling after the election."],
+ ["@mavis I have met the creature. Face to face.","@bern Really? What was it like?","@mavis It was a very productive meeting. It didn't say much. I did most of the running."],
+ ["@trev I'm proud to unveil my brand-new campaign bus!","@bern It's very loud, Trevor.","@trev It's electric, Bernard!","@bern Then why is there a brass band on the roof?","@nige That's us, sorry. We thought it was a parade."],
+ ["@spoon Some people say Spoons Not Forks is a one-issue party.","@bern Is it?","@spoon Absolutely not. We also have strong views on ladles."],
+ ["@mavis I'd like to make a statement about my opponent. Trevor Wobble is a coward, a fool, and I cannot stress this enough—","@bern Councillor, your microphone is on.","@mavis —a wonderful, wonderful colleague. Hello Trevor. Lovely tie."],
+ ["@trev I've written a song for my campaign. It goes: “Vote for Wobble, he won't wobble.”","@bern And the second line?","@trev I wobbled, Bernard. I never wrote the second line."],
+ ["@caller Bernard, it's Doreen. I just want to say, I've lived here sixty years, and the council has never once fixed the pothole outside my house.","@mavis Doreen, I promise you, the moment the creature is caged, that pothole will be my top priority.","@caller Oh, it's not a pothole any more, love. The creature lives in it now."],
+ ["@sand I think the Sensible Sandwich Party would be very good in a crisis.","@bern Why's that?","@sand Because we always pack lunch."],
+ ["@bern Deputy Mayor, you've said the creature is “definitely gone”. Can you tell our listeners what that loud thumping is behind you?","@trev That's my heart, Bernard. It's very patriotic."],
+ ["@nige I demand a recount!","@bern Nigel, there hasn't been a vote.","@nige Then I demand a count! And then a recount. I'm not fussy about the order."],
+ ["@mavis Some people say I don't listen. I say: pardon?"],
+ ["@trev I'd like to thank the creature for... no, sorry, wrong page. I'd like to thank the CHURCH for their generous donation of candles."],
+ ["@bern Before we go, Deputy Mayor, any final words for the listeners?","@trev Yes. Stay safe, stay quiet, and remember: a vote for Wobble is a vote for a man who has read nearly all of the creature leaflet. All but the last page. I'm saving it."]]);
+function talkLines(){const sc=shuffle([...TALK]),out=[];
+  const links=["@bern Let's go to the phones.","@bern Moving on, very quickly.","@bern Right. Next.","@bern You're listening to Order! Order! on ninety-three point seven. Please keep your radio low.","@bern I'm being told to keep it moving.","@bern ...Okay."];
+  sc.forEach((s,i)=>{if(i&&Math.random()<.35)out.push(pick(links));out.push(...s)});return out}
+
+// ===== 101.1 / Smooth Kevin's songs (all original tunes, generated from a seed) =====
+const SONGS=[
+ {t:"Don't Make a Sound",a:'The Whispers',bpm:72,key:57,minor:1,style:'ballad',lead:'sine',v:[0,5,2,6],c:[5,6,0,0],b:[3,4,0,4],seed:11,fact:'The Whispers recorded that whole album in a library. They were asked to leave during the drum solo.'},
+ {t:'Tiptoe Through the Hallway',a:'Gentle Feet',bpm:126,key:60,minor:0,style:'swing',lead:'triangle',v:[0,5,1,4],c:[3,3,0,5],b:[2,5,1,4],seed:23,fact:'Gentle Feet only ever played in socks. Their drummer used a feather.'},
+ {t:'Hold Your Breath (Till Morning)',a:'The Wardrobe Kids',bpm:112,key:62,minor:0,style:'pop',lead:'square',v:[0,4,5,3],c:[3,4,0,0],b:[5,3,1,4],seed:37,fact:'The Wardrobe Kids formed inside an actual wardrobe. Two of them are still in it.'},
+ {t:"Can't Stop the Fog",a:'The Grey Mornings',bpm:118,key:55,minor:1,style:'disco',lead:'sawtooth',v:[0,6,5,6],c:[3,4,0,0],b:[5,3,6,4],seed:41,fact:'That went to number one the week everyone stopped buying records. So technically it is still number one.'},
+ {t:'Beans Again Tonight',a:'Tinny Malone and the Openers',bpm:132,key:55,minor:0,style:'country',lead:'triangle',v:[0,0,3,4],c:[3,0,4,0],b:[5,3,0,4],seed:53,fact:'Tinny wrote that after eleven days of beans. He wrote the sequel, Still Beans, on day twelve.'},
+ {t:'Lights Out, Love',a:'Velvet Torch',bpm:84,key:57,minor:0,style:'waltz',lead:'sine',v:[0,3,4,0],c:[5,3,1,4],b:[3,4,2,5],seed:67,fact:'Velvet Torch played the first ever concert in total darkness. To this day nobody is sure they turned up.'},
+ {t:'Under the Floorboards',a:'The Creaky Boards',bpm:136,key:52,minor:1,style:'rock',lead:'sawtooth',v:[0,0,5,6],c:[5,6,0,4],b:[3,3,4,4],seed:71,fact:'The Creaky Boards are the only band ever banned from their own rehearsal room by the people downstairs.'},
+ {t:"Who's That Knocking (Don't Answer)",a:'Doris and the Deadbolts',bpm:150,key:57,minor:1,style:'swing',lead:'square',v:[0,3,4,0],c:[5,1,4,0],b:[3,0,5,4],seed:83,fact:'Doris had eleven deadbolts on her front door. She called them the band. Big misunderstanding at the record label.'},
+ {t:'Moonlight on the Barricade',a:'The Smooth Kevin Orchestra',bpm:96,key:55,minor:0,style:'waltz',lead:'triangle',v:[0,4,0,3],c:[3,0,4,0],b:[5,1,4,4],seed:97,fact:'That was my orchestra. Well. It was me, and a keyboard with a button that says orchestra. Same thing.'},
+ {t:'Sock Shuffle',a:'DJ Socks',bpm:124,key:60,minor:0,style:'disco',lead:'square',v:[0,3,0,4],c:[5,3,0,4],b:[1,4,0,5],seed:101,fact:'DJ Socks invented a dance you can do without making a single sound. It is mostly standing still and smiling.'},
+ {t:'Quiet Is the New Loud',a:'Mime Time',bpm:140,key:60,minor:0,style:'chip',lead:'square',v:[0,5,3,4],c:[3,4,5,0],b:[1,4,1,4],seed:113,fact:'Mime Time have never said a single word in an interview. Their manager says they are very hard to book.'},
+ {t:'Barricade My Heart',a:'Roxanne and the Planks',bpm:76,key:53,minor:0,style:'ballad',lead:'sine',v:[0,2,3,4],c:[5,3,0,4],b:[1,4,2,5],seed:127,fact:'Roxanne wrote that love song for her front door. Six weeks together now and it has never once let her down.'},
+ {t:'Tins, Tins, Tins',a:'The Cupboard Raiders',bpm:144,key:55,minor:0,style:'rock',lead:'square',v:[0,3,4,3],c:[0,4,5,4],b:[5,5,3,4],seed:131,fact:'That was recorded using only empty tins as drums. The label called it an expensive sound. It was not.'},
+ {t:'Slow Dance with a Shadow',a:'Lola Lantern',bpm:92,key:55,minor:1,style:'pop',lead:'triangle',v:[0,2,6,5],c:[3,6,0,4],b:[5,6,3,4],seed:149,fact:'Lola says the shadow in that song is a metaphor. Her neighbours say it is not, and would she please move.'}];
+const KEV_OPEN=["Good evening, night owls and nervous people. This is Smooth Kevin on Golden Oldies, one-oh-one point one, the only station still playing music after dark. Mostly because everyone else ran away.",
+ "Smooth Kevin here, live from a studio with the lights off and the door wedged shut with a filing cabinet. Let's get smooth.",
+ "Hello, hello, hello. Quietly. Hello. It's Smooth Kevin, and you're listening to the smoothest station in a city that is, frankly, not very smooth right now."];
+const KEV_INTRO=["Here's a little number to tiptoe to. This is {a}, with {t}.","Lower the lights, if they aren't already. Here comes {t}, by {a}.","Requested by Brenda, who is hiding in a launderette. This is {t}, by {a}.",
+ "This next one takes me back. Back to when we were allowed outside. It's {a}, with {t}.","If you're holding a tin opener, put it down and sway. {a}. {t}.","Coming up, a real smoothie. {t}, by {a}.",
+ "Turn it up. No, wait. Turn it down. To a sensible volume. Lovely. Here's {t}, by {a}.","Ooh, I love this one. I played it four times last night and nobody phoned in to complain, which is either very good or very bad. {t}, by {a}.",
+ "Here's one for anyone who has ever had to hide in a bin. You know who you are. {a}, with {t}.","One for the lovers, the loners, and whoever is stuck up that tree in the park. This is {t}, by {a}.",
+ "Kevin's pick of the week. Well, the night. I don't know what day it is any more. {t}, by {a}.","Dedicated to my cat, Velvet, who hasn't been seen since Tuesday, but is definitely fine. {t}, by {a}.",
+ "Smooth as a buttered floor. It's {a}, with {t}.","Here's a classic. Well, I say classic, it came out about a month ago. Things move fast now. {t}, by {a}.",
+ "Close your eyes. Not all the way. Keep one open. Here's {a}, with {t}.","Let's slow things right down. Slower. Slower than that. Here's {t}."];
+const KEV_BACK=["That was {t}, by {a}. Beautiful.","{a} there, with {t}. Gets me every time.","Mmm. {t}. Smoooooth.","That was {a}. I had a little dance in my chair. Quietly. On the cushion.","Lovely stuff from {a}.",
+ "{t}. If that doesn't make you feel safe, nothing will. Although, to be fair, nothing will.","That was {t}. I may have hummed along a bit. Sorry, it echoes in here.",
+ "Ah, {a}. They don't make them like that any more. They don't make anything any more. Everyone's hiding.","And that was {t}. Did anyone else hear a scrape right at the end of that? No? Just me? Lovely.",
+ "Gorgeous. {t}, by {a}. The phone lines are open, but please, whisper."];
+const KEV_CHAT=["A dedication now, from Maya to Tom: “Please stop snoring, it can hear you.” Lovely stuff.","Kevin's tip of the night: if you're dancing, dance in socks. Much quieter.",
+ "Someone has phoned in to ask if I'm a real person or a recording. I am real. I think. I'm going to go and check.","A shout out to the man waving a torch about on the roof of the multi-storey car park. Mate, put it away. We can all see you. So can it.",
+ "A message from Doreen: she has found the good biscuits, and she is not sharing. That's it. That's the whole message.","Bit of housekeeping. The studio fridge is now empty. I'd like to say I'm sorry. I'm not. They were delicious.",
+ "People ask me, Kevin, how do you stay so smooth? Simple. Moisturiser, and never, ever opening the door.","A listener asks if the creature likes music. Well, it hasn't phoned in to complain, so I'm taking that as a yes.",
+ "I've had a request for something loud and fast. The answer is no, Gary. Read the room.","Fun fact: the word smooth appears in my contract eleven times. I wrote the contract.",
+ "Kevin's love advice: if someone says they'll meet you outside after dark, they're either a fool, or the monster. Either way, swipe left.","A big hello to the survivors in the old school. I can hear you on your walkie-talkies. Lovely singing, Ian, but please, stop.",
+ "My producer's left a note on the desk. It says: Kevin, please stop saying smooth. I've thrown it away. Smoothly.","A shout out to my mum, who's listening. Hi Mum. She says don't go out. I'm not going out, Mum. I live here now.",
+ "If you've just tuned in: welcome. You've found the smoothest station on the dial. Also the only one with music. Also the only one with a man who hasn't showered in nine days.",
+ "Competition time! First caller to tell me what a sunny day looks like wins a tin of peaches. Lines are open. Anyone? No? The peaches are still available.","A quick traffic update: there is no traffic. There hasn't been for weeks. The ring road is gorgeous this time of year.",
+ "Velvet the cat update: still not back. Still definitely fine. Velvet, if you're listening, there's tuna.","Kevin's hot tip: rub a bit of soap on a squeaky door hinge. Or butter. Don't eat the butter afterwards. Learned that one the hard way.",
+ "A dedication from the lads at the fire station: to everyone out there, keep your heads down and your volume low. Aww. Smooth.","Somebody's just slid a note under the studio door. It says: more Kevin please. ...Hang on. Who is outside the studio door?",
+ "The weather, from my window: foggy. Something big just went past. Back to the music.","If you're scared right now, that's okay. Put the kettle on. Quietly. Actually, maybe not the kettle, it whistles. Have some squash.",
+ "I'm told the Deputy Mayor is a big fan of the show. Trevor, if you're listening: the council fridge is not a bunker.","I used to do weddings, you know. Smooth Kevin's Disco Roadshow. Now I do this. Same thing really. Fewer people, more barricades.",
+ "A listener asks: Kevin, what's your favourite colour? Easy. Whatever colour the helicopter is."];
+const fillSong=(s,x)=>x.replace(/\{t\}/g,s.t).replace(/\{a\}/g,s.a);
+function djLines(){const out=['@kev '+pick(KEV_OPEN)],chat=shuffle([...KEV_CHAT]),intro=shuffle([...KEV_INTRO]),back=shuffle([...KEV_BACK]);
+  shuffle([...SONGS]).forEach((s,i)=>{if(i&&Math.random()<.75)out.push('@kev '+chat[i%chat.length]);
+    out.push('@kev '+fillSong(s,intro[i%intro.length]),{song:s},'@kev '+fillSong(s,back[i%back.length])+(Math.random()<.65?' '+s.fact:''))});return out}
+
+// --- the little band ---
+function srng(seed){let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
+const SCALES={maj:[0,2,4,5,7,9,11],min:[0,2,3,5,7,8,10]};
+function degMidi(s,i,chord){const sc=SCALES[s.minor?'min':'maj'],o=Math.floor(i/7),k=((i%7)+7)%7;let m=s.key+12*o+sc[k];if(s.minor&&k===6&&((chord%7)+7)%7===4)m++;return m}
+const CELLS=[[4],[2,2],[2,2],[3,1],[1,1,2],[2,1,1],[-2,2],[-4],[1,1,1,1],[2,-2]];
+function makeMelody(s,r,chords,base,dense,spb){
+  const bpb=spb/4,rh=[];let st=0;
+  for(let b=0;b<bpb*2;b++){let c=CELLS[Math.floor(r()*CELLS.length)];if(!dense&&c.length>3&&r()<.6)c=[4];if(dense&&c[0]<0&&r()<.6)c=[2,2];if(b===0&&c[0]<0)c=[4];for(const d of c){if(d>0)rh.push({st,dur:d});st+=Math.abs(d)}}
+  const isCT=(i,ch)=>{const k=(((i-ch)%7)+7)%7;return k===0||k===2||k===4};
+  const snap=(x,ch)=>{for(const d of[0,1,-1,2,-2,3])if(isCT(x+d,ch))return x+d;return x};
+  const out=[];let cur=snap(base+chords[0],chords[0]),moves=[];
+  rh.forEach((n,j)=>{const ch=chords[Math.floor(n.st/spb)];let step=j?[-2,-1,-1,1,1,2,0,3,-3][Math.floor(r()*9)]:0;if(cur>base+5)step=-Math.abs(step)||-1;if(cur<base-2)step=Math.abs(step)||1;
+    let x=cur+step;if(n.st%4===0)x=snap(x,ch);moves.push(x-cur);cur=x;out.push({st:n.st,dur:n.dur,i:x,ch})});
+  const half=[];let c2=snap(base+chords[2],chords[2]);
+  rh.forEach((n,j)=>{const st=n.st+spb*2,ch=chords[Math.floor(st/spb)];let x=c2+(j?moves[j]:0);if(n.st%4===0)x=snap(x,ch);c2=x;if(st<spb*3+spb/2)half.push({st,dur:n.dur,i:x,ch})});
+  const endCh=chords[3];half.push({st:spb*3+spb/2-(spb===12?2:0),dur:spb/2+(spb===12?2:0),i:snap(c2,endCh)-((((snap(c2,endCh)-endCh)%7)+7)%7===0?0:0),ch:endCh,end:1});
+  for(const n of half){if(n.st+n.dur>spb*4)n.dur=spb*4-n.st}
+  return out.concat(half)}
+function buildSong(s){
+  const spb=s.style==='waltz'?12:16,plan=[['intro',s.v,0],['verse',s.v,1],['chorus',s.c,2],['verse',s.v,1],['chorus',s.c,2],['bridge',s.b,3],['chorus',s.c,2],['outro',s.v,0]];if(s.bpm<90)plan.splice(5,2);
+  const mel={},bars=[];const cache={};
+  plan.forEach(([sec,prog,mi],pi)=>{
+    if(mi&&!cache[sec])cache[sec]=makeMelody(s,srng(s.seed*7+mi),prog,sec==='chorus'?9:sec==='bridge'?8:7,sec==='chorus',spb);
+    const base=bars.length*spb;
+    prog.forEach((d,k)=>bars.push({deg:d,sec,vol:sec==='outro'?Math.max(.15,1-k/4):sec==='intro'?.8:1}));
+    if(mi)for(const n of cache[sec]){const at=base+n.st;(mel[at]=mel[at]||[]).push({...n,m:degMidi(s,n.i,n.ch),h:sec==='chorus'?degMidi(s,n.i-2,n.ch):0})}});
+  return{spb,bars,mel}}
+const DRUMS={ballad:{k:[0,10],s:[8],sv:.12,h:[0,4,8,12],hv:.04},pop:{k:[0,6,8],s:[4,12],h:[0,2,4,6,8,10,12,14]},disco:{k:[0,4,8,12],s:[4,12],h:[0,4,8,12],o:[2,6,10,14]},
+  swing:{k:[0,8],kv:.3,s:[4,12],sv:.1,h:[0,4,6,8,12,14],hv:.06},rock:{k:[0,8,10],s:[4,12],sv:.3,h:[0,2,4,6,8,10,12,14],hv:.07},country:{k:[0,8],s:[4,12],h:[0,2,4,6,8,10,12,14]},
+  chip:{k:[0,8],s:[4,12],h:[0,2,4,6,8,10,12,14],hv:.05},waltz:{k:[0],kv:.3,s:[],h:[4,8],hv:.05}};
+const MUS={on:false,timer:null};let NOISE=null;
+function noiseBuf(){if(!NOISE){NOISE=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const d=NOISE.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}return NOISE}
+function mnote(t,m,dur,type,v,o={}){
+  const f=440*Math.pow(2,(m-69)/12),osc=AC.createOscillator(),g=AC.createGain();osc.type=type;osc.frequency.setValueAtTime(f,t);let node=osc;
+  if(o.lp){const fl=AC.createBiquadFilter();fl.type='lowpass';fl.frequency.value=o.lp;osc.connect(fl);node=fl}
+  if(o.vib&&dur>.35){const l=AC.createOscillator(),lg=AC.createGain();l.frequency.value=5.2;lg.gain.value=f*.011;l.connect(lg);lg.connect(osc.frequency);l.start(t+.12);l.stop(t+dur+.4)}
+  const a=o.a||.012,r=o.r||.15;g.gain.setValueAtTime(.0001,t);g.gain.linearRampToValueAtTime(v,t+a);g.gain.setTargetAtTime(v*(o.sus==null?.55:o.sus),t+a,Math.max(.05,dur*.35));g.gain.setTargetAtTime(.0001,t+dur,r/3);
+  node.connect(g);g.connect(MUS.bus);osc.start(t);osc.stop(t+dur+r+.1)}
+function mkick(t,v){const o=AC.createOscillator(),g=AC.createGain();o.frequency.setValueAtTime(120,t);o.frequency.exponentialRampToValueAtTime(42,t+.12);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+.28);o.connect(g);g.connect(MUS.bus);o.start(t);o.stop(t+.3)}
+function mnoise(t,v,dec,type,freq){const s=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain();s.buffer=noiseBuf();f.type=type;f.frequency.value=freq;g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+dec);s.connect(f);f.connect(g);g.connect(MUS.bus);s.start(t,Math.random()*.5);s.stop(t+dec+.05)}
+function songStep(i,t){
+  const s=MUS.s,B=MUS.b,spb=B.spb,bar=B.bars[Math.floor(i/spb)],k=i%spb,sd=MUS.sd,V=bar.vol;if(muted||!bar)return;
+  const T=t+((s.style==='swing'&&k%4===2)?sd*.34:0),P=DRUMS[s.style];
+  const ch=[0,2,4].map(x=>degMidi(s,bar.deg+x,bar.deg)),root=degMidi(s,bar.deg,bar.deg)-12,fifth=degMidi(s,bar.deg+4,bar.deg)-12;
+  if(!(bar.sec==='intro'&&Math.floor(i/spb)<2&&s.style!=='waltz')||k%8===0){
+    if(P.k.includes(k))mkick(T,(P.kv||.55)*V);
+    if(P.s.includes(k)){mnoise(T,(P.sv||.22)*V,.16,'bandpass',1900);if(s.style!=='swing')mnote(T,55,.06,'triangle',.06*V,{sus:.1})}
+    if(P.h.includes(k))mnoise(T,(P.hv||.07)*V,.04,'highpass',7500);if(P.o&&P.o.includes(k))mnoise(T,.06*V,.2,'highpass',6500)}
+  const bv=.2*V,bt=(s.style==='disco'||s.style==='rock')?'sawtooth':'triangle',bo={lp:700,sus:.7};
+  const nextRoot=degMidi(s,(B.bars[Math.floor(i/spb)+1]||bar).deg,0)-12;
+  switch(s.style){
+    case 'ballad':if(k===0)mnote(T,root,sd*7.5,'triangle',bv,bo);if(k===8)mnote(T,fifth,sd*7.5,'triangle',bv*.8,bo);break;
+    case 'pop':if([0,6,8,14].includes(k))mnote(T,root,sd*1.8,'triangle',bv,bo);break;
+    case 'disco':if(k%2===0)mnote(T,root+(k%4===2?12:0),sd*1.6,bt,bv*.8,{lp:900,sus:.4});break;
+    case 'swing':if(k%4===0){const b=k/4;mnote(T,b===0?root:b===1?degMidi(s,bar.deg+2,bar.deg)-12:b===2?fifth:nextRoot-1,sd*3,'triangle',bv,bo)}break;
+    case 'rock':if(k%2===0)mnote(T,root,sd*1.8,bt,bv*.7,{lp:800,sus:.6});break;
+    case 'country':if(k===0)mnote(T,root,sd*3,'triangle',bv,bo);if(k===8)mnote(T,fifth-12,sd*3,'triangle',bv,bo);break;
+    case 'chip':if(k%2===0)mnote(T,root+(k%4===2?12:0),sd*1.6,'triangle',bv,bo);break;
+    case 'waltz':if(k===0)mnote(T,root,sd*4,'triangle',bv,bo);break}
+  const pv=.038*V;
+  switch(s.style){
+    case 'ballad':case 'pop':case 'swing':if(k===0)for(const m of ch)mnote(T,m,sd*spb*.95,'triangle',pv,{a:.25,sus:.8,r:.4});break;
+    case 'waltz':if(k===4||k===8)for(const m of ch)mnote(T,m,sd*3,'triangle',pv*1.3,{sus:.5});break;
+    case 'disco':if([2,6,10,14].includes(k))for(const m of ch)mnote(T,m,sd*1.2,'sawtooth',pv*.7,{lp:1800,sus:.3});break;
+    case 'country':if(k===4||k===12)for(const m of ch)mnote(T,m,sd*1.5,'triangle',pv*1.3,{sus:.4});break;
+    case 'rock':if(k===0)for(const m of[ch[0],ch[0]+7])mnote(T,m-12,sd*spb*.9,'sawtooth',pv*.8,{lp:1100,sus:.8});break;
+    case 'chip':mnote(T,ch[k%3]+12,sd*.9,'square',pv*.45,{sus:.3});break}
+  for(const n of B.mel[i]||[]){const lv=(s.lead==='square'||s.lead==='sawtooth'?.055:.1)*V,d=n.dur*sd*.92;
+    mnote(T,n.m+12,d,s.lead,lv,{lp:s.lead==='sawtooth'?2400:s.lead==='square'?3000:0,vib:s.lead!=='square',sus:.7,a:s.lead==='sine'?.03:.01});
+    if(n.h)mnote(T,n.h+12,d,'sine',lv*.45,{sus:.7,a:.05})}}
+function songPlay(s,done){
+  songStop();if(!ac()||muted){MUS.fake=setTimeout(done,4000);return}
+  const B=buildSong(s);Object.assign(MUS,{s,b:B,step:0,done,on:true,sd:60/s.bpm/4,total:B.bars.length*B.spb,next:AC.currentTime+.2});
+  const g=AC.createGain(),hp=AC.createBiquadFilter(),lp=AC.createBiquadFilter();g.gain.value=.6;hp.type='highpass';hp.frequency.value=140;lp.type='lowpass';lp.frequency.value=4500;g.connect(hp);hp.connect(lp);lp.connect(outNode());MUS.bus=g;
+  MUS.timer=setInterval(songTick,30)}
+function songTick(){if(!MUS.on)return;
+  while(MUS.next<AC.currentTime+.15){if(MUS.step>=MUS.total){const d=MUS.done;songStop();if(d)d();return}songStep(MUS.step,MUS.next);MUS.step++;MUS.next+=MUS.sd}
+  const bar=$('#sbar');if(bar)bar.style.width=(100*MUS.step/MUS.total).toFixed(1)+'%';const sec=$('#ssec');if(sec){const b=MUS.b.bars[Math.min(MUS.b.bars.length-1,Math.floor(MUS.step/MUS.b.spb))];sec.textContent=b.sec}}
+function songStop(){clearTimeout(MUS.fake);if(MUS.timer)clearInterval(MUS.timer);MUS.timer=null;MUS.on=false;
+  if(MUS.bus){const g=MUS.bus;try{g.gain.setTargetAtTime(.0001,AC.currentTime,.06);setTimeout(()=>{try{g.disconnect()}catch(e){}},500)}catch(e){}}MUS.bus=null}
+function showSong(s){const el=$('#rtext');if(!el)return;
+  el.innerHTML=`<div style="text-align:center"><div style="font-size:12px;letter-spacing:.2em;opacity:.7">♪ NOW PLAYING ♪</div><div style="font-size:21px;color:#e9ffe0;margin:6px 0 2px">${s.t}</div><div style="opacity:.85">${s.a}</div>
+  <div class="eq">${[0,1,2,3,4,5,6,7,8].map(i=>`<i style="animation-delay:-${(i*.37)%1}s;animation-duration:${.4+(i*.13)%.4}s"></i>`).join('')}</div>
+  <div style="height:4px;background:#1c3a24;margin-top:8px;border-radius:2px"><div id="sbar" style="height:100%;width:0;background:#a6f0b8;border-radius:2px"></div></div><div id="ssec" style="font-size:11px;opacity:.6;margin-top:4px;letter-spacing:.15em;text-transform:uppercase">intro</div></div>`}
+
+// ===== TV + emergency + numbers =====
 function clueLines(){
   const L=[],where={chains:'factory',battery:'petrol',speaker:'radio',flood:'firestation'};
   const desc={chains:'heavy chains still coiled on a pallet',battery:'car batteries stacked behind the counter',speaker:'a huge loudspeaker on the studio roof',flood:'portable floodlights in the engine bay'};
@@ -1415,42 +1589,111 @@ function clueLines(){
   L.push('Reminder: it hunts by sound. Walk, do not run. If someone knocks at night, do not answer.');
   return L;
 }
-function numberLines(){const L=['Seven. Four. Nine. It is listening.','Do not sing. Do not hum. Seven. Four.','Subject L. Subject L. Find the boy. Seven.'];
+const PUDDLE_OPEN=["@pud Hello boys and girls! It's me, Captain Puddle!","@ron And me! Ronnie the Frog! Ribbit!"],PUDDLE_BYE=["@pud Captain Puddle has to go now. Remember: whisper, waddle, and wait!","@ron Bye bye! Ribbit! ...Quiet ribbit."];
+const PUDDLE=scenes([
+ "@pud Remember: if you hear something big outside, be as quiet as a duck in a library!","@pud Captain Puddle's top tip: never open the door at night. Not even for bread. Not even for really nice bread.",
+ "@pud Splish! Splash! Oh no, that was far too loud! Shhhh!","@pud Let's count the puddles together! One, two, three... what's that in the fog? Never mind! Four!",
+ ["@ron Captain, why is everyone hiding?","@pud Because hiding is fun, Ronnie! It's the best game! The grown-ups have been playing it for six weeks!"],
+ "@pud Today's word is: whisper. Can you whisper it with me? Whisper! ...Lovely. Very lovely. You can stop now.",
+ ["@ron Captain! Captain! There's a big shadow behind you!","@pud Ha ha ha! Oh Ronnie, you are funny. ...There isn't though, is there?","@ron ...No. Sorry. It was a coat stand."],
+ "@pud Let's sing the quiet song! ...... Wonderful! That was our best one yet!",
+ "@pud Arts and crafts time! Today we're making a lovely barricade out of cereal boxes and a sofa. Ask a grown-up to help with the sofa.",
+ ["@ron Captain, what's your favourite animal?","@pud Ducks, Ronnie! What's yours?","@ron Anything that isn't seven feet tall."],
+ "@pud Remember, children: vegetables make you strong, and torches make it go away. Eat your peas and keep a torch by your bed!",
+ "@pud Story time! Once upon a time, a little duck went outside after dark. ...And that's the end of the story. Let's do a different story.",
+ ["@ron Captain, are we going to be okay?","@pud Of course we are, Ronnie! Ducks always land on their feet!","@ron That's cats.","@pud ...Ducks ALSO land on their feet, Ronnie."],
+ "@pud Let's do our quiet exercises! Tiptoe on the spot! Tiptoe, tiptoe! Now freeze like a statue! Hold it... hold it... hold it for the rest of the night!",
+ "@pud Today's letter is S! S is for safe! S is for shelter! And S is for... shhhhh!",
+ "@pud If someone knocks and says they're your granny, ask them a question only your granny would know! If they get it wrong, or if they're nine feet tall, do not open the door!",
+ "@ron Ribbit! Ribbit! ...Sorry. Ribbit. That one was quieter.","@pud Let's draw the sun! Remember the sun, everyone? Big yellow circle? We'll see it again soon! Probably!",
+ "@pud Hands up if you were very brave today! ...I can't see you, I'm on the telly. But I just know you were.",
+ ["@ron Captain, I'm scared of the dark.","@pud That's okay, Ronnie! Lots of people are scared of the dark!","@ron Are you?","@pud Next question!"],
+ "@pud Let's play I Spy! I spy, with my little eye, something beginning with... M. ...Moving on! Literally! Let's all move away from the window!",
+ ["@pud Ronnie, what do we do if we hear a big bang?","@ron Hide under the table!","@pud And if the table is already full?","@ron Hide under a smaller table!"],
+ "@pud Captain Puddle's healthy snack of the day: a cracker! Crunch quietly, children. Suck it until it goes soft. That's called being clever."]);
+const COOK_OPEN=["@chef Welcome to Cooking with Tins! I'm Chef Marguerite. Today: beans. On beans. With a side of beans."],COOK_BYE=["@chef That's all from Cooking with Tins. Stay fed, stay quiet, and rinse your tins, because the smell travels."];
+const COOK=scenes([
+ "@chef Step one: open the tin very, very quietly. If it goes pop, run.","@chef Step two: eat it cold. Fires make smoke, and smoke makes trouble.","@chef Chef's secret: peaches in syrup count as a pudding AND a drink.",
+ "@chef Never waste the juice from a tin. Out here, every drop counts.","@chef Next week: soup you can eat with a fork, for when all the spoons are gone.","@chef Today's special: tinned spaghetti hoops, arranged into a little smiley face. Presentation matters, even at the end of the world.",
+ "@chef If your tin has no label, that's a mystery tin. Mystery tins are exciting. Last week I got custard. The week before, dog food. I ate both. Seasoning is everything.",
+ ["@asst Chef, the tin opener's broken.","@chef Then we improvise, Derek! Pass me the brick.","@asst Chef, that's very loud.","@chef ...Then we hide, Derek."],
+ "@chef Chef's tip: a cracker on top of anything makes it a canapé. Canapés are fancy. We deserve fancy.",
+ "@chef Tonight, a three-course dinner. Starter: tinned peas. Main: tinned peas, warm. Dessert: peaches. You thought I'd say peas. I'm not a monster.",
+ "@chef Rice pudding straight from the tin is a hug for your tummy. Fact.","@chef Check the date on your tin. If it says best before last year, that just means it's matured. Like a fine cheese.",
+ ["@chef Derek, taste this. What do you think?","@asst It's cold beans, Chef.","@chef With a hint of?","@asst ...Fear, Chef?","@chef Exactly, Derek. That's the secret ingredient."],
+ "@chef Do not shake a fizzy drink before you open it. I cannot stress this enough. We lost our cameraman. He's fine. He just ran off screaming and never came back.",
+ "@chef Chocolate spread on a cracker, folded in half. I call it the emergency sandwich. Patent pending.","@chef Corned beef! Open it with the little key, round and round. When the key snaps, and it always snaps, have a little cry and use a spoon.",
+ "@chef If you find a tin of soup, rejoice. Food AND water at the same time. Soup is the king of tins.",
+ ["@asst Chef, the viewers want to know if you can cook something hot.","@chef Derek, I can't light the stove. The creature might smell it.","@asst So what do we do?","@chef We rub the tin very fast, Derek. Friction. Rub, Derek. RUB."],
+ "@chef Tinned tomatoes, a pinch of salt, and a crumbled cracker. Ta-da: Italian food. Sort of. If you squint."]);
+const WEATHER=["@den Tonight's forecast: fog, fog and more fog, with a hundred percent chance of something lurking.","@den Wind: light and whispery. Visibility: about as far as you can throw a tin of beans.",
+ "@den Tomorrow: grey in the morning, grey in the afternoon, and dark by teatime. Stay in.","@den Pollen count: low. Monster count: one. Please plan accordingly.","@den Weekend outlook: still foggy. Still don't go out after dark.",
+ "@den Good evening, I'm Dennis Drizzle. Let's look at the map. Fog in the north. Fog in the south. And in the middle... is that two red eyes? Probably a glitch. Moving on.",
+ "@den Temperatures tonight falling to three degrees. Or as I like to call it, two-jumper weather.","@den There's a high pressure system over the river, and another one in my chest, because something just walked past the studio.",
+ "@den Sunrise tomorrow at a quarter past seven. Please stay indoors until then. And, frankly, after then.","@den Chance of rain: sixty percent. Chance of rain being the worst thing that happens to you tonight: lower.",
+ "@den A reminder: fog makes sound travel further. So does panicking. Keep both to a minimum.","@den I've been asked to stop drawing the creature on the weather map. By my boss. But he said it in a very creature-like way.",
+ "@den Tomorrow: dry, still, and very quiet. Perfect weather for not going outside.","@den The moon is full tonight, which means good visibility for you, and, unfortunately, for everything else.",
+ "@den Winds of up to twenty miles an hour, so if your windows rattle, that's probably the wind. Probably.","@den Some viewers have complained the forecast is always fog. I don't make the weather, madam. I just stand in front of it.",
+ "@den Looking further ahead: more fog, and then, around Thursday, I'm hoping, a little bit of sunshine and a helicopter.","@den The five-day outlook: fog, fog, fog, mist for a change, and fog.",
+ "@den The fog is so thick tonight you could spread it on toast. Please do not try to spread it on toast.","@den This forecast was sponsored by the Moderately Quiet Party. Vote quiet. ...Thank you."];
+const NEWS_EXTRA=scenes(["@pam Our reporter is broadcasting from a cupboard. She says it's actually quite cosy.","@pam Experts confirm the creature hates bright light. A torch in its eyes may save your life.",
+ "@pam The shops are all still closed. Taking supplies is technically frowned upon, but nobody is checking.",
+ ["@pam Let's go live to our reporter Gavin, who is in a cupboard. Gavin, what can you see?","@gav Coats, Pamela. Mostly coats. It's very dark.","@pam Thank you, Gavin."],
+ "@pam The zoo has confirmed all of its animals are accounted for, so the creature is definitely not from the zoo. The zookeeper has asked people to stop sending him angry letters.",
+ "@pam Scientists say the creature can hear a whisper from a hundred metres away. The scientists said this in a whisper, which, in hindsight, was a mistake.",
+ "@pam Supermarket shelves remain empty, apart from the tinned prunes, which remain completely full. Nobody knows why. Everybody knows why.",
+ "@pam The council has issued new guidelines: stay indoors, stay quiet, and please stop phoning the council.","@pam A man in the east of the city has lived in a wheelie bin for three weeks. He says it's very spacious and he's never going back.",
+ "@pam Good news: the city's pigeons are thriving. Bad news: they now appear to be in charge of the park.","@pam Sport: the football season is postponed. In unrelated news, the creature was last seen near the stadium, eating a goalpost.",
+ "@pam Viewers have asked us to stop playing the jingle at the start of the news. We agree. It's too loud. From now on, we'll just wave.",
+ ["@pam Gavin, are you still there?","@gav Still here, Pamela. Someone just opened the cupboard, said sorry, and closed it again.","@pam Was it the creature?","@gav It said sorry, Pamela. I don't think it was the creature."],
+ ["@pam Gavin, any update from the cupboard?","@gav I've found a hoover, Pamela.","@pam Is that useful?","@gav It's very loud, Pamela. So, no."],
+ "@pam And finally: a lady in the north of the city has knitted a scarf long enough to wrap round her entire house. Experts say it's very impressive. The creature has said nothing, because it cannot knit."]);
+const EMERG=["This is the emergency broadcast. Stay calm. Stay inside. Stay quiet.","Torches are your best friend. A bright flash in its face will drive it back, for a little while.","Walk, do not run. Running is loud. Loud brings it.",
+ "If someone outside asks to be let in, look carefully first. Look for anything wrong. The eyes. The hands. The way they stand.","Ration your food and water. One of each, per person, per night.",
+ "Underground is safer than above ground. If you dig, support your tunnels. Collapses are loud.","Do not travel after dark unless you must. It sees far better than you do at night.","Broken glass is loud. Watch where you step.",
+ "If someone chooses to stay behind, remember where you left them. They may still be waiting.","Count your people every night. Make sure everyone has eaten.","Rescue is possible. The helicopters will come the moment the creature is caged."];
+function emergLines(){const L=shuffle(clueLines()),E=shuffle([...EMERG]),out=[];L.forEach((l,i)=>{out.push(l);if(i%2===1)out.push(E[i%E.length])});out.push(E[0]);return out}
+function numberLines(){const L=['Seven. Four. Nine. It is listening.','Do not sing. Do not hum. Seven. Four.','Subject L. Subject L. Find the boy. Seven.','One. One. One. The door is not a door.','Eight. Six. It remembers your voice.',
+  'Do not answer the knocking. Three. Three.','Zero. It was never an animal. Zero.','Five. Five. The doctor knew. Five.','Count the people. Count again. Is the number right?','Nine. The quiet ones live longest. Nine.',
+  'The boy can hear it too. Two. Two.','Six. Six. Six. ...Sorry. Wrong station. Seven.','Four. It is closer than last night. Four.'];
   for(const id in G.locs)if(G.locs[id].file)L.push(`Four. Two. The Listener files rest at the ${LOCS[id].name}. Four. Two.`);return shuffle(L)}
 const RADIO_CH=[
-  {f:'88.1',n:'Emergency Broadcast',lines:()=>shuffle(clueLines()),pitch:1,rate:1},
-  {f:'93.7',n:'Talk Radio: "Order! Order!" with Bernard Gristle',lines:()=>shuffle([...TALK]),pitch:.8,rate:1.02},
-  {f:'101.1',n:'Golden Oldies with DJ Smooth Kevin',lines:()=>shuffle([...DJ]),pitch:1.15,rate:1,music:true},
-  {f:'66.6',n:'??? (just numbers)',lines:numberLines,pitch:.55,rate:.8}];
+  {f:'88.1',n:'Emergency Broadcast',lines:emergLines,pitch:1,rate:1,v:0},
+  {f:'93.7',n:'Talk Radio: "Order! Order!" with Bernard Gristle',lines:talkLines,pitch:.8,rate:1.02},
+  {f:'101.1',n:'Golden Oldies with DJ Smooth Kevin',lines:djLines,pitch:.9,rate:.9},
+  {f:'66.6',n:'??? (just numbers)',lines:numberLines,pitch:.55,rate:.8,v:3}];
 const TV_CH=[
-  {n:'📰 Survivor News',lines:()=>[...shuffle(clueLines()).slice(0,4),pick(NEWS_EXTRA)],pitch:1,draw:drawNews},
-  {n:'🦆 Captain Puddle',lines:()=>[...PUDDLE],pitch:1.6,rate:1.1,draw:drawPuddle},
-  {n:'🥫 Cooking with Tins',lines:()=>[...COOK],pitch:1.1,draw:drawCook},
+  {n:'📰 Survivor News',lines:()=>{const n=shuffle([...NEWS_EXTRA]);return ['@pam Good evening. This is Survivor News, with me, Pamela Steadman.',...shuffle(clueLines()).slice(0,3).map(x=>'@pam '+x),...n[0],...shuffle(clueLines()).slice(0,2).map(x=>'@pam '+x),...n[1],...n[2]]},pitch:1,draw:drawNews},
+  {n:'🦆 Captain Puddle',lines:()=>[...PUDDLE_OPEN,...shuffle([...PUDDLE]).slice(0,9).flat(),...PUDDLE_BYE],pitch:1.6,rate:1.1,draw:drawPuddle},
+  {n:'🥫 Cooking with Tins',lines:()=>[...COOK_OPEN,...shuffle([...COOK]).slice(0,9).flat(),...COOK_BYE],pitch:1.1,draw:drawCook},
   {n:'⛅ The Fog Forecast',lines:()=>shuffle([...WEATHER]),pitch:.95,draw:drawWeather},
-  {n:'🎙️ Order! Order! (live debate)',lines:()=>shuffle([...TALK]),pitch:.8,draw:drawDebate}];
+  {n:'🎙️ Order! Order! (live debate)',lines:talkLines,pitch:.8,draw:drawDebate}];
 const MEDIA={on:null,ch:0,tvch:0,i:0,lines:[],timer:null,tok:0,music:null};
 const TVC=document.createElement('canvas');TVC.width=320;TVC.height=180;const tvx=TVC.getContext('2d');
-const TV={cap:'',stat:0,ticker:''};
+const TV={cap:'',stat:0,ticker:'',who:null,L:'mavis',R:'trev',last:null};
 function hush(){try{window.speechSynthesis&&speechSynthesis.cancel()}catch(e){}}
-function say(text,pitch,rate,done){
+function enVoices(){try{const v=speechSynthesis.getVoices().filter(x=>/^en/i.test(x.lang));return v.filter(x=>/GB/i.test(x.lang)).concat(v.filter(x=>!/GB/i.test(x.lang)))}catch(e){return[]}}
+function say(text,pitch,rate,done,vi){
   if(muted||!SET.voice||!window.speechSynthesis)return false;
-  try{hush();const u=new SpeechSynthesisUtterance(text.replace(/[\u{1F300}-\u{1FAFF}☀-➿]/gu,'').replace(/\.\.\./g,', '));
+  try{hush();const u=new SpeechSynthesisUtterance(text.replace(/[\u{1F300}-\u{1FAFF}☀-➿“”]/gu,'').replace(/\.\.\.+/g,', '));
+    const vs=enVoices();if(vi!=null&&vs.length)u.voice=vs[vi%vs.length];
     u.volume=SET.vol/100;u.pitch=pitch||1;u.rate=rate||1;u.onend=done;u.onerror=done;speechSynthesis.speak(u);return true}catch(e){return false}}
-function mediaStop(){MEDIA.tok++;clearTimeout(MEDIA.timer);hush();if(MEDIA.music){clearInterval(MEDIA.music);MEDIA.music=null}MEDIA.on=null;TV.cap=''}
+try{if(window.speechSynthesis)speechSynthesis.getVoices()}catch(e){}
+function mediaStop(){MEDIA.tok++;clearTimeout(MEDIA.timer);hush();songStop();if(MEDIA.music){clearInterval(MEDIA.music);MEDIA.music=null}MEDIA.on=null;TV.cap='';TV.who=null}
 function mediaNext(){
-  const tok=++MEDIA.tok;clearTimeout(MEDIA.timer);if(!MEDIA.on)return;
+  const tok=++MEDIA.tok;clearTimeout(MEDIA.timer);songStop();if(!MEDIA.on)return;
   const src=MEDIA.on==='radio'?RADIO_CH[MEDIA.ch]:TV_CH[MEDIA.tvch];
   if(!MEDIA.lines.length||MEDIA.i>=MEDIA.lines.length){MEDIA.lines=src.lines();MEDIA.i=0}
-  const line=MEDIA.lines[MEDIA.i++]||'...';
-  if(MEDIA.on==='radio'){const el=$('#rtext');if(el){el.style.opacity=0;setTimeout(()=>{el.textContent=line;el.style.opacity=1},150)}}
-  else{TV.cap=line;const el=$('#tvcap');if(el)el.textContent=line}
-  const go=()=>{if(tok!==MEDIA.tok)return;clearTimeout(MEDIA.timer);MEDIA.timer=setTimeout(()=>{if(tok===MEDIA.tok)mediaNext()},1400)};
-  const spoke=say(line,src.pitch,src.rate,go);
-  MEDIA.timer=setTimeout(()=>{if(tok===MEDIA.tok)mediaNext()},spoke?line.length*110+6000:Math.max(4500,line.length*70));
+  const item=MEDIA.lines[MEDIA.i++]||'...';
+  const go=()=>{if(tok!==MEDIA.tok)return;clearTimeout(MEDIA.timer);MEDIA.timer=setTimeout(()=>{if(tok===MEDIA.tok)mediaNext()},1100)};
+  if(typeof item==='object'&&item.song){hush();showSong(item.song);songPlay(item.song,go);return}
+  const L=parseLine(item),who=L.who;
+  if(MEDIA.on==='radio'){const el=$('#rtext');if(el){el.style.opacity=0;setTimeout(()=>{if(tok!==MEDIA.tok)return;el.innerHTML=(who?`<span style="color:#f0d080">${who.n}:</span> `:'')+L.t;el.style.opacity=1},150)}}
+  else{TV.cap=L.t;TV.who=L.k||null;const k=L.k;if(k&&['mavis','trev','nige','sand','spoon'].includes(k)&&TV.L!==k&&TV.R!==k){if(TV.last===TV.L)TV.R=k;else TV.L=k}if(k&&k!=='bern'&&k!=='caller')TV.last=k;
+    const el=$('#tvcap');if(el)el.innerHTML=(who?`<b style="color:#e8b84a">${who.n}:</b> `:'')+L.t}
+  const spoke=say(L.t,who?who.p:src.pitch,who?who.r:src.rate,go,who?who.v:src.v);
+  MEDIA.timer=setTimeout(()=>{if(tok===MEDIA.tok)mediaNext()},spoke?L.t.length*110+6000:Math.max(4200,L.t.length*68));
 }
-function startMusic(){
-  const tune=[392,440,494,587,494,440,392,330,392,440,392,294,330,392,440,392];let k=0;
-  MEDIA.music=setInterval(()=>{if(muted)return;const f=tune[k++%tune.length];tone(f,.4,'triangle',.02*SET.vol/80);if(k%4===0)tone(f/2,.6,'sine',.015*SET.vol/80)},420)}
 function radioDlg(){
   mediaStop();MEDIA.on='radio';const c=RADIO_CH[MEDIA.ch];
   homeDlg(`<div class="ic">📻</div><div class="dial">${RADIO_CH.map((x,i)=>`<span class="${i===MEDIA.ch?'on':''}">${x.f}</span>`).join('')}</div>
@@ -1458,7 +1701,7 @@ function radioDlg(){
   <div class="rscreen" id="rtext">~ tuning ~</div>
   <div style="margin-top:12px"><button class="btn" onclick="tune(-1)">◀ Tune</button><button class="btn" onclick="tune(1)">Tune ▶</button><button class="btn" onclick="mediaNext()">⏭ Next</button><button class="btn" onclick="toggleVoice()">${SET.voice?'🔊 Voice on':'🔇 Voice off'}</button></div>
   <div><button class="btn" onclick="journalDlg()">📓 Journal</button><button class="btn amber" onclick="homeClose()">Switch off</button></div>`);
-  hiss(.4,.06,4000);if(c.music)startMusic();MEDIA.lines=[];MEDIA.i=0;MEDIA.timer=setTimeout(mediaNext,450);
+  hiss(.4,.06,4000);MEDIA.lines=[];MEDIA.i=0;MEDIA.timer=setTimeout(mediaNext,450);
 }
 function tune(d){MEDIA.ch=(MEDIA.ch+d+RADIO_CH.length)%RADIO_CH.length;radioDlg()}
 function toggleVoice(){SET.voice=!SET.voice;saveSet();if(!SET.voice)hush();if(MEDIA.on==='radio')radioDlg();else tvDlg()}
@@ -1528,9 +1771,11 @@ function drawDebate(g,t,W,H){
   const pod=(x,col,hat,talk)=>{g.fillStyle='#3a2a1a';g.fillRect(x-28,108,56,62);g.fillStyle=col;g.fillRect(x-20,70,40,40);g.fillStyle='#e0b896';g.beginPath();g.arc(x,58,15,0,7);g.fill();
     if(hat){g.fillStyle='#111';g.fillRect(x-12,30,24,16);g.fillRect(x-18,44,36,4)}else{g.fillStyle='#ccc';g.beginPath();g.arc(x,52,15,Math.PI,0);g.fill()}
     g.fillStyle='#111';g.fillRect(x-6,55,3,3);g.fillRect(x+3,55,3,3);g.fillStyle='#7a2a2a';g.fillRect(x-5,65,10,talk?2+Math.abs(Math.sin(t*10))*4:2)};
-  const who=Math.floor(t/3)%2;pod(80,'#2a4a8a',true,who===0&&TV.cap);pod(240,'#4a8a2a',false,who===1&&TV.cap);
-  g.fillStyle='#fff';g.font='9px sans-serif';g.fillText('Cllr Ploughshare',80,122);g.fillText('Dep. Mayor Wobble',240,122);
-  g.fillStyle='#8a5a2a';g.save();g.translate(160,140);g.rotate(Math.sin(t*3)*.4);g.fillRect(-14,-6,28,10);g.fillRect(-2,4,4,16);g.restore();
+  const PL={mavis:['#2a4a8a',1,'Cllr Ploughshare'],trev:['#4a8a2a',0,'Dep. Mayor Wobble'],nige:['#8a2a2a',0,'Nigel Blusterby'],sand:['#c8a050',0,'Sandra Crust'],spoon:['#6a6a7a',1,'Col. Ladle']};
+  const A=PL[TV.L]||PL.mavis,Bq=PL[TV.R]||PL.trev;pod(80,A[0],A[1],TV.who===TV.L&&TV.cap);pod(240,Bq[0],Bq[1],TV.who===TV.R&&TV.cap);
+  g.fillStyle='#fff';g.font='9px sans-serif';g.fillText(A[2],80,122);g.fillText(Bq[2],240,122);
+  if(TV.who==='caller'&&Math.sin(t*6)>0){g.fillStyle='#f1c40f';g.font='bold 11px sans-serif';g.fillText('📞 LIVE CALLER',160,46)}
+  g.fillStyle='#8a5a2a';g.save();g.translate(160,140);g.rotate(TV.who==='bern'?Math.sin(t*8)*.5:.05);g.fillRect(-14,-6,28,10);g.fillRect(-2,4,4,16);g.restore();
 }
 function planDlg(){
   const where={chains:'factory',battery:'petrol',speaker:'radio',flood:'firestation'};
