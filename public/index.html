@@ -254,7 +254,7 @@ function invHTML(){return['food','water','meds','planks','metal','poles'].map(k=
 /* ---------- screens ---------- */
 function show(h){stopScav();stopTunnel();stopHome();if(typeof stopTravel==='function'){stopTravel();stopCutscene()}ui.innerHTML=h;ui.style.display='flex';cv.style.display='none';ui.scrollTop=0}
 function dlg(h){$('#dlgbox').style.maxWidth='';$('#dlgbox').innerHTML=h;$('#dlg').style.display='flex'}
-function closeDlg(){$('#dlg').style.display='none'}
+function closeDlg(){$('#dlg').style.display='none';if(typeof HM!=='undefined'&&HM&&HM.running)HM.dlg=false}
 
 /* ---------- accounts & saving ---------- */
 const ACC={user:null,token:null,online:null};
@@ -1773,6 +1773,7 @@ function buildPart(id){const r=RECIPES.find(x=>x.id===id);if(!r||G.trap[id])retu
   addLog(`🔨 You built ${r.n.toLowerCase()}.`);G.logSeen=G.log.length;hiss(.3,.15,2000);tone(180,.15,'square',.06);setTimeout(()=>tone(180,.15,'square',.06),180);saveProgress();buildHome();benchDlg()}
 function homeLoop(now){
   if(!HM||!HM.running)return;const dt=Math.min((now-HM.last)/1000,.05);HM.last=now;
+  if(HM.dlg&&$('#dlg').style.display!=='flex')HM.dlg=false;
   if(!HM.paused&&!HM.dlg)homeUpdate(dt);homeRender(dt);homeHud();requestAnimationFrame(homeLoop);
 }
 function homeUpdate(dt){jumpUpdate(dt);
@@ -2237,7 +2238,7 @@ function caught(){
   if(S.follower){G.lost++;txt+=` ${S.follower.name} didn't make it out.`}
   addLog(txt);S.L.visits++;
   if(y.hp<=0){setTimeout(()=>finish('taken'),1600);return}
-  setTimeout(()=>{dayScreen();dlg(`<div class="ic">🌑</div><p>${txt}</p><button class="btn" onclick="closeDlg()">Breathe</button>`)},1600);
+  setTimeout(()=>{dayScreen();const h=`<div class="ic">🌑</div><p>${txt}</p><button class="btn" onclick="homeClose()">Breathe</button>`;if(HM&&HM.running)homeDlg(h);else dlg(h)},1600);
 }
 function scavLoop(now){
   if(!S||!S.running)return;
