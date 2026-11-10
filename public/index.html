@@ -1171,10 +1171,6 @@ function buildTrapSite(sc){
   const cone=add(new THREE.CylinderGeometry(.12,.3,.3,12,1,true),new THREE.MeshStandardMaterial({color:0x3a3a3a,side:THREE.DoubleSide}),0,.62,0,lure);
   const lamp=add(new THREE.SphereGeometry(.05,8,6),new THREE.MeshBasicMaterial({color:0xff3020}),.2,.45,.18,lure);lure.userData.lamp=lamp;
   lure.position.set(tm.cx*U,0,tm.cy*U);lure.visible=false;sc.add(lure);R3.lure=lure;
-  const LX=tm.lx*U,LZ=tm.ly*U;add(new THREE.BoxGeometry(.5,1.1,.4),new THREE.MeshStandardMaterial({color:0x3a4a3a}),LX,.55,LZ);
-  const lever=add(new THREE.CylinderGeometry(.04,.04,.8,6),steel,LX,1.4,LZ);lever.rotation.z=.6;R3.lever=lever;
-  const gl2=add(new THREE.SphereGeometry(.08,8,6),new THREE.MeshBasicMaterial({color:0x40ff70}),LX,1.2,LZ-.22);
-  const glp=new THREE.PointLight(0x40ff70,2,6,1.6);glp.position.set(LX,1.5,LZ-.4);sc.add(glp);
   add(new THREE.CylinderGeometry(.06,.08,5,8),steel,X1+2,2.5,Z1+1);const fh=add(new THREE.BoxGeometry(.6,.4,.3),new THREE.MeshBasicMaterial({color:0x555555}),X1+1.7,5,Z1+.8);R3.floodHead=fh;
   const sp=new THREE.SpotLight(0xffffff,0,30,.6,.4,1);sp.position.set(X1+1.7,5,Z1+.8);sp.target.position.set((X0+X1)/2,0,(Z0+Z1)/2);sc.add(sp);sc.add(sp.target);R3.floodSpot=sp;
 }
@@ -1183,12 +1179,12 @@ function renderTrap(dt){
   if(tm.dropped&&tm.cageY>0){tm.cageY=Math.max(0,tm.cageY-dt*14);if(tm.cageY===0){hiss(.6,.35,500);tone(60,.8,'sawtooth',.12,.5);tm.landed=true}}
   R3.cage.position.y=tm.cageY;
   if(R3.lure&&R3.lure.visible)R3.lure.userData.lamp.visible=tm.phase!=='active'||Math.sin(S.t*12)>0;
-  if(R3.lever)R3.lever.rotation.z=tm.phase==='place'||tm.phase==='arm'?.6:-.6;
+  if(R3.lever){const r=tm.phase==='place'||tm.phase==='arm'||tm.phase==='cage'||tm.phase==='hut'?.6:-.6;if(R3.leverAxis==='x')R3.lever.rotation.x=r;else R3.lever.rotation.z=r}
   if(tm.phase==='won'&&R3.floodSpot){R3.floodSpot.intensity=120;R3.floodHead.material.color.set(0xffffff)}
 }
 function trapAct(type){
   const tm=S.trapM,c=S.cre;
-  if(type==='tplace'){tm.phase='arm';R3.lure.visible=true;tone(300,.15,'square',.04);showMsg('The lure is in place. Now get to the lever and switch it on.',3);return}
+  if(type==='tplace'){tm.phase='hut';R3.lure.visible=true;tone(300,.15,'square',.04);showMsg('The lure is in place. Now pick a spot with a clear view of the cage, 5 to 13 steps away, and put your lookout hut up.',4.5);return}
   if(tm.phase==='arm'){tm.phase='active';tm.lureT=0;c.dormant=0;showMsg('The lure BLARES into the street. It will have heard that...',3.5);return}
   // drop the cage
   tm.dropped=true;
@@ -2058,7 +2054,7 @@ function build3D(){
   R3.key=null;
   if(S.key){const kg=new THREE.Group(),P=PARTS[S.key.item];const bx=new THREE.Mesh(new THREE.BoxGeometry(.5,.35,.4),new THREE.MeshStandardMaterial({color:0xd9a441,emissive:0x7a5010,emissiveIntensity:.6}));bx.position.y=.4;kg.add(bx);
     const tg=textSprite(P.ic,'#fff',.5);tg.position.y=1.1;kg.add(tg);const kl=new THREE.PointLight(0xffb040,2,5,1.6);kl.position.y=.9;kg.add(kl);kg.position.set(S.key.x*U,0,S.key.y*U);sc.add(kg);R3.key=kg}
-  if(S.trapM){buildTrapSite(sc);buildBooth(sc)}
+  if(S.trapM){R3.cage=null;R3.lure=null;R3.lever=null;R3.floodSpot=null;R3.leverAxis=null}
   // survivor
   R3.surv=null;R3.help=null;R3.fol=null;
   if(S.surv){const g=S.surv.mimic?mimicMesh(S.surv):npcMesh(S.surv.id);g.position.set(S.surv.x*U,0,S.surv.y*U);g.rotation.y=Math.random()*6;sc.add(g);R3.surv=g;
@@ -2097,8 +2093,7 @@ function startScav(id,day){
   if(ki&&!G.trap[ki]){let q,k=0;do{const r=pick(mp.rooms);q=[ri2(r[0],r[2]),ri2(r[1],r[3])];k++}while(S.m[q[1]*MW+q[0]]!==1&&k<400);S.key={x:(q[0]+.5)*T,y:(q[1]+.5)*T,item:ki}}
   S.trapM=null;
   if(id==='trapsite'){for(let y=22;y<=28;y++)for(let x=6;x<=34;x++)if(S.m[y*MW+x]===5)S.m[y*MW+x]=0;
-    for(let x=15;x<=18;x++)S.m[26*MW+x]=9;for(let y=27;y<=28;y++){S.m[y*MW+15]=9;S.m[y*MW+18]=9;S.m[y*MW+16]=0;S.m[y*MW+17]=0}S.m[29*MW+16]=0;S.m[29*MW+17]=0;
-    S.trapM={phase:'place',cx:10.5*T,cy:25*T,x0:8*T,x1:13*T,y0:23.5*T,y1:26.5*T,lx:17*T,ly:27.4*T,lureT:0,cageY:3,dropped:false};S.cre.dormant=35}
+    S.trapM={phase:'cage',cx:null,cy:null,lureT:0,cageY:3,dropped:false};S.cre.dormant=70}
   yaw=tun?Math.random()*6.28:0;pitch=0;
   ui.style.display='none';cv.style.display='block';gl.style.display='block';
   build3D();resizeCv();setTouch('scav');
@@ -2114,7 +2109,7 @@ function blocked(x,y,r){return solid(tileAt(x-r,y-r))||solid(tileAt(x+r,y-r))||s
 function los(x0,y0,x1,y1){const d=Math.hypot(x1-x0,y1-y0),n=Math.ceil(d/10);for(let i=1;i<n;i++){const t=i/n;if(tileAt(x0+(x1-x0)*t,y0+(y1-y0)*t)===2)return false}return true}
 function bfsFrom(ti){const d=new Int16Array(MW*MH).fill(-1),q=[ti];d[ti]=0;let h=0;
   while(h<q.length){const c=q[h++],x=c%MW,y=(c/MW)|0;for(const [a,b] of DIRS){const nx=x+a,ny=y+b;if(nx<0||ny<0||nx>=MW||ny>=MH)continue;const n=ny*MW+nx;if(d[n]>=0||solid(S.m[n]))continue;d[n]=d[c]+1;q.push(n)}}return d}
-function creMove(c,tx,ty,spd,dt){if(S&&c===S.cre&&S.br)spd*=S.br.spd*(S.day&&S.br.dayMul?S.br.dayMul:1);
+function creMove(c,tx,ty,spd,dt){if(S&&c===S.cre&&S.br&&S.br.freeze&&S.looked)return false;if(S&&c===S.cre&&S.br)spd*=S.br.spd*(S.day&&S.br.dayMul?S.br.dayMul:1);
   const tt=tileIdx(tx,ty);
   if(tt!==c.tt||c.distT<=0){c.tt=tt;c.field=bfsFrom(tt);c.distT=.6}
   c.distT-=dt;
@@ -2143,7 +2138,7 @@ function findTarget(){
   if(S.surv&&!(S.surv.mode==='attack'||S.surv.mode==='flee'))consider({type:'surv'},S.surv.x,S.surv.y,54);
   if(S.file)consider({type:'file'},S.file.x,S.file.y,46);
   if(S.key)consider({type:'key'},S.key.x,S.key.y,50);
-  if(S.trapM){const tm=S.trapM;if(tm.phase==='place')consider({type:'tplace'},tm.cx,tm.cy,70);if(tm.phase==='arm'||tm.phase==='active')consider({type:'lever'},tm.lx,tm.ly,60)}
+  if(S.trapM){const tm=S.trapM;if(tm.phase==='cage')consider({type:'tcage'},S.px,S.py,999);if(tm.phase==='hut')consider({type:'thut'},S.px,S.py,999);if(tm.phase==='place')consider({type:'tplace'},tm.cx,tm.cy,70);if(tm.phase==='arm'||tm.phase==='active')consider({type:'lever'},tm.lx,tm.ly,60)}
   return best;
 }
 function interact(){
@@ -2162,6 +2157,7 @@ function interact(){
   else if(best.type==='surv')meetSurvivor();
   else if(best.type==='file')takeFile();
   else if(best.type==='key')takeKey();
+  else if(best.type==='tcage')placeCage();else if(best.type==='thut')placeHut();
   else if(best.type==='tplace'||best.type==='lever')trapAct(best.type);
 }
 function openDlg(h){S.dlg=true;for(const k in keys)keys[k]=false;unlock();dlg(h)}
@@ -2251,7 +2247,7 @@ function scavLoop(now){
   if(S.running){render3D(dt);hudScav()}
   requestAnimationFrame(scavLoop);
 }
-function updScav(dt){jumpUpdate(dt);
+function updScav(dt){jumpUpdate(dt);porcelainTick(dt);
   S.t+=dt;S.time-=dt;S.msgT-=dt;S.flashCd-=dt;S.flashT-=dt;
   if(S.time<=0&&!S.hunt){S.hunt=true;showMsg('⚠ It knows you\'re here. GET OUT.',4);scream();S.cre.dormant=0}
   const mouseOn=locked(),f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),s=mouseOn?(keys.KeyD?1:0)-(keys.KeyA?1:0):0;
@@ -2305,7 +2301,7 @@ function updScav(dt){jumpUpdate(dt);
       if(creMove(c,c.tx,c.ty,S.day?66:84,dt)){c.wait+=dt;if(c.wait>(Math.random()<.2?1.6:.45)){c.wait=0;wanderTarget(c)}}
     }
     }
-    if(S.hidden?(S.seenHide&&Math.hypot(c.x-S.hidden.x,c.y-S.hidden.y)<26):pd<22)return caught();
+    if(!(S.br&&S.br.freeze&&S.looked)&&(S.hidden?(S.seenHide&&Math.hypot(c.x-S.hidden.x,c.y-S.hidden.y)<26):pd<22))return caught();
     if(S.surv&&!S.surv.mimic&&Math.hypot(c.x-S.surv.x,c.y-S.surv.y)<22)npcTaken();
     if(S.follower&&Math.hypot(c.x-S.follower.x,c.y-S.follower.y)<22){
       G.lost++;scream();addLog(`🕯️ ${S.follower.name} was taken in the dark.`);showMsg(`${S.follower.name} was taken!`,3);S.follower=null;if(R3.fol){R3.scene.remove(R3.fol);R3.fol=null}}
@@ -2342,7 +2338,7 @@ function render3D(dt){
     if(sp>.2){const ta=Math.atan2(-vx,-vz);let da=ta-g.rotation.y;while(da>Math.PI)da-=6.283;while(da<-Math.PI)da+=6.283;g.rotation.y+=da*Math.min(1,dt*6)}
     R3.creSp=sp}
   R3.creLast=[nx,nz];
-  animCreature(ud,R3.creSp||0,c,dt);
+  if(!(S.br&&S.br.freeze&&S.looked))animCreature(ud,R3.creSp||0,c,dt);
   g.position.set(nx,0,nz);g.visible=!c.disguised;
   // npcs
   const t=S.t;
@@ -2426,9 +2422,9 @@ function hudScav(){
   cx.fillStyle=jam?'#9fe8b8':(cb.out||c.disguised)?'#6fae5a':cd<12?'#ff5040':'#d9a441';
   cx.fillText(jam?'RADAR · interference...':(cb.out||c.disguised)?`RADAR ${rangeM}m · nothing close`:`⚠ IT IS ${cd}m AWAY`,rcx,rcy+RR+5);
   cx.fillStyle='#8a8676';cx.fillText(`${S.hatch?'TUNNEL':'HOME'} ${Math.round(eh.d*U)}m${has('dog')?' · 🐕 long range':''}`,rcx,rcy+RR+20);
-  if(S.trapM){const tm=S.trapM,ob={place:'🪤 Carry the lure into the middle of the cage and set it down (E)',arm:'🪤 Get into the LOOKOUT hut (green light). Inside, it can\'t see you. Then switch the lure on',active:trapInZone()?'🪤 IT\'S INSIDE THE CAGE! DROP IT NOW! (E at the lever)':'🪤 Wait by the lever. When it walks into the cage, drop it.',won:'🪤 GOT IT!',failed:'🪤 The trap failed. Get out of there!'}[tm.phase];
+  if(S.trapM){const tm=S.trapM,ob={cage:'🪤 Find open ground and set the cage up (E where you stand)',place:'🪤 Carry the lure into the middle of the cage and set it down (E)',hut:'🪤 Stand 5-13 steps from the cage and put the lookout hut up (E)',arm:'🪤 You are in the hut. It can\'t see you in here. Switch the lure on (E)',active:trapInZone()?'🪤 IT\'S INSIDE THE CAGE! DROP IT NOW! (E at the lever)':'🪤 Wait by the lever. When it walks into the cage, drop it.',won:'🪤 GOT IT!',failed:'🪤 The trap failed. Get out of there!'}[tm.phase];
     cx.font='bold 16px Georgia';const ow=cx.measureText(ob).width+30;cx.fillStyle='rgba(40,8,6,.75)';cx.fillRect(W/2-ow/2,rcy+RR+40,ow,30);cx.fillStyle=tm.phase==='active'&&trapInZone()?'#ff6050':'#ffd870';cx.fillText(ob,W/2,rcy+RR+47);
-    const cp=pos(tm.cx,tm.cy),lp=pos(tm.lx,tm.ly);cx.fillStyle='#ffd870';cx.fillRect(cp.x-4,cp.y-4,8,8);cx.fillStyle='#70ff90';cx.beginPath();cx.arc(lp.x,lp.y,3,0,7);cx.fill()}
+    if(tm.cx!=null){const cp=pos(tm.cx,tm.cy);cx.fillStyle='#ffd870';cx.fillRect(cp.x-4,cp.y-4,8,8)}if(tm.lx!=null){const lp=pos(tm.lx,tm.ly);cx.fillStyle='#70ff90';cx.beginPath();cx.arc(lp.x,lp.y,3,0,7);cx.fill()}}
   // search bar
   if(S.search){const s=S.search;cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(W/2-80,H/2+30,160,10);cx.fillStyle='#d9a441';cx.fillRect(W/2-78,H/2+32,156*s.t/s.dur,6)}
   // prompt
@@ -2445,6 +2441,7 @@ function promptText(){
   const b=findTarget();if(!b)return'';
   if(b.type==='surv')return'[E] Talk';
   if(b.type==='key')return'[E] Take the '+PARTS[S.key.item].n.toLowerCase();
+  if(b.type==='tcage')return'[E] Set the cage up HERE';if(b.type==='thut')return'[E] Put the lookout hut up HERE (its window will face the cage)';
   if(b.type==='tplace')return'[E] Set the lure down inside the cage';
   if(b.type==='lever')return S.trapM.phase==='arm'?'[E] Switch the lure ON':(trapInZone()?'[E] DROP THE CAGE!':'[E] Drop the cage (it isn\'t inside yet!)');if(b.type==='file')return'[E] Pick up the file';
   if(b.type===3)return searchLabel(S.conts.get(b.i));if(b.type===4)return'[E] Hide in the '+theme().hide;if(b.type===5)return'[E] Hide in car';
@@ -2466,6 +2463,7 @@ function finish(forced){
     if(!fresh.length)return repeatBlocked(elig[0]);
     e=fresh[0];
   }
+  if(['truth','underground','betrayed','alone','everyone','hard','rescued'].includes(e)&&!finish.cs){return playRescue(()=>{finish.cs=true;finish(e);finish.cs=false})}
   saveEnding(e);G.over=true;saveProgress();
   const names=others.map(p=>p.name);const nm=names.length?names.join(', '):'no one';
   const gone=[...G.deaths];
@@ -2910,7 +2908,9 @@ function breedNight(lines){
   lines.push(`🥚 It has been breeding. Something new is nesting in the ${LOCS[id].name}: a ${B.ic} <b>${B.n}</b>. Strong: ${lc1(B.strong)}. Weak: ${lc1(B.weak)}.`)}
 function breedLines(){const L=[];for(const id in G.locs){const b=G.locs[id].breed;if(!b)continue;const B=BREEDS[b];
   L.push(`Warning. A ${B.n} is nesting in the ${LOCS[id].name}. ${B.strong}. But remember: ${lc1(B.weak)}.`)}return L}
-function tintCreature(g,B){g.scale.setScalar(B.sc);g.traverse(o=>{if(o.isMesh&&o.material&&o.material.map&&o.material.color&&o.material.color.getHex()===0x6a5a52){o.material=o.material.clone();o.material.color.setHex(B.col)}})}
+function tintCreature(g,B){g.scale.setScalar(B.sc);
+  if(B.freeze){const crack=canvasTex(128,128,(c,w,h)=>{c.fillStyle='#ece8e0';c.fillRect(0,0,w,h);c.strokeStyle='rgba(60,50,40,.55)';c.lineWidth=1;for(let k=0;k<9;k++){c.beginPath();let x=Math.random()*w,y=Math.random()*h;c.moveTo(x,y);for(let j=0;j<6;j++){x+=rnd(-14,14);y+=rnd(-14,14);c.lineTo(x,y)}c.stroke()}});
+    g.traverse(o=>{if(o.isMesh&&o.material&&o.material.isMeshStandardMaterial){o.material=new THREE.MeshStandardMaterial({map:crack,color:0xffffff,roughness:.22,metalness:.05})}});return}g.traverse(o=>{if(o.isMesh&&o.material&&o.material.map&&o.material.color&&o.material.color.getHex()===0x6a5a52){o.material=o.material.clone();o.material.color.setHex(B.col)}})}
 
 /* ===================== more TV channels ===================== */
 Object.assign(VOICES,{docu:{n:'Documentary narrator',p:.82,r:.9,v:0},cctv:{n:'Inspector Moss',p:.9,r:1,v:2},terry:{n:'Terry Chuckles',p:1.15,r:1.2,v:1},
@@ -3559,7 +3559,7 @@ function searchLabel(ct){const L=ct.loot||[];const nm=KIND_NAME[ct.kind]||'it';
 
 /* ===================== a lookout hut at the trap lever: inside, it can't see you ===================== */
 const BOOTH={x0:16,x1:17,y0:27,y1:28};
-const inBooth=(x,y)=>!!(S&&S.trapM&&x>=BOOTH.x0*T&&x<(BOOTH.x1+1)*T&&y>=BOOTH.y0*T&&y<(BOOTH.y1+1)*T);
+const inBooth=(x,y)=>!!(S&&S.trapM&&S.trapM.hx!=null&&Math.floor(x/T)===S.trapM.hx&&Math.floor(y/T)===S.trapM.hy);
 function buildBooth(sc){
   const M=(w,h,d,mat,x,y,z)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);sc.add(m);return m};
   const wood=std({map:rtex('grain')}),dark=std({color:0x2a2a2e}),H=2.6;
@@ -3622,6 +3622,113 @@ function decoMeshes(sc,list){
     M(L,2.2,2.3,red,0,1.55,0,g);M(L*.25,.9,2.31,std({color:0x0d1418,metalness:.8,roughness:.1}),L*.36,2.1,0,g);M(L+.02,.25,2.32,mats.yellow,0,1.2,0,g);M(L*.75,.15,.7,mats.steel,-L*.08,2.75,0,g);
     for(const k of[-.32,.05,.32])for(const sz of[-1,1]){const w=C(.5,.5,.35,mats.dark,L*k,.5,sz*1.1,g);w.rotation.x=Math.PI/2}
     const lb=M(.4,.15,1.6,new THREE.MeshBasicMaterial({color:0x3a6aff}),L*.45,2.72,0,g)}}
+
+/* ===================== Porcelain: it only moves when you are not looking ===================== */
+BREEDS.porcelain={n:'Porcelain',ic:'🫥',col:0xe8e4dc,sc:1.12,spd:1.9,hear:1,see:1,stun:.05,freeze:true,
+  strong:'Unbelievably fast the moment you look away, and your torch does nothing to it',weak:'It cannot move at all while you are looking straight at it'};
+function lookingAt(c){if(!c||c.disguised||S.hidden)return false;const dx=c.x-S.px,dy=c.y-S.py,d=Math.hypot(dx,dy);if(d<1)return true;
+  const fx=-Math.sin(yaw),fy=-Math.cos(yaw);if((dx*fx+dy*fy)/d<.8)return false;if(d>(S.day?40:16)*T)return false;return los(S.px,S.py,c.x,c.y)}
+function porcelainTick(dt){if(!S.br||!S.br.freeze)return;const was=S.looked;S.looked=lookingAt(S.cre);
+  if(S.looked&&!was&&S.cre.dormant<=0){tone(1200,.06,'sine',.012);if(Math.hypot(S.cre.x-S.px,S.cre.y-S.py)<6*T)showMsg('🫥 It stopped dead. Do NOT look away...',2)}
+  if(!S.looked&&was&&S.cre.dormant<=0)S.scrapeT=0;S.scrapeT=(S.scrapeT||0)-dt;if(!S.looked&&S.cre.dormant<=0&&S.scrapeT<=0){S.scrapeT=rnd(.5,1.2);if(Math.hypot(S.cre.x-S.px,S.cre.y-S.py)<14*T)hiss(.15,.06,2600)}}
+
+/* ===================== rescue helicopter cutscene ===================== */
+function helicopterMesh(){const g=new THREE.Group(),M=(geo,m,x,y,z,p=g)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);p.add(o);return o};
+  const red=std({color:0xc0392b,roughness:.4,metalness:.3}),white=std({color:0xf0f0ec,roughness:.4}),dark=std({color:0x1a1a1e}),glass=std({color:0x0d1a24,metalness:.8,roughness:.1});
+  const body=M(new THREE.CapsuleGeometry(1.3,3.4,6,16),white,0,2.2,0);body.rotation.z=Math.PI/2;
+  const stripe=M(new THREE.CapsuleGeometry(1.31,3.4,6,16,),red,0,1.9,0);stripe.rotation.z=Math.PI/2;stripe.scale.set(1,1,1);stripe.scale.y=.5;
+  M(new THREE.SphereGeometry(1.15,16,12,0,Math.PI*2,0,Math.PI/2),glass,2.3,2.45,0).rotation.z=-Math.PI/2;
+  const tail=M(new THREE.CylinderGeometry(.22,.45,5,10),white,-4.4,2.7,0);tail.rotation.z=Math.PI/2+.08;
+  M(new THREE.BoxGeometry(.9,1.4,.12),red,-6.8,3.3,0);
+  const tr=new THREE.Group();tr.position.set(-6.8,3.4,.2);g.add(tr);M(new THREE.BoxGeometry(.1,1.6,.06),dark,0,0,0,tr);M(new THREE.BoxGeometry(1.6,.1,.06),dark,0,0,0,tr);
+  M(new THREE.CylinderGeometry(.18,.18,.6,8),dark,0,3.7,0);
+  const rot=new THREE.Group();rot.position.set(0,4.05,0);g.add(rot);for(let k=0;k<4;k++){const b=M(new THREE.BoxGeometry(6.4,.06,.32),dark,3.2,0,0,rot);const p=new THREE.Group();p.rotation.y=k*Math.PI/2;rot.add(p);p.add(b)}
+  for(const sz of[-1,1]){M(new THREE.CylinderGeometry(.07,.07,4.2,6),dark,0,.3,sz*1.1).rotation.z=Math.PI/2;for(const sx of[-.9,.9])M(new THREE.BoxGeometry(.08,.9,.08),dark,sx,.75,sz*1.0)}
+  const t=textSprite('RESCUE','#fff',.55);t.position.set(-1.2,2.5,1.75);g.add(t);
+  const beacon=M(new THREE.SphereGeometry(.12,8,6),new THREE.MeshBasicMaterial({color:0xff2020}),-1.2,3.65,0);
+  const sl=new THREE.SpotLight(0xfff4e0,0,40,.4,.5,1.2);sl.position.set(2.2,1.2,0);g.add(sl);g.add(sl.target);sl.target.position.set(4,-6,0);
+  g.userData={rot,tr,beacon,sl};return g}
+let RS=null;
+function playRescue(done){
+  show('');ui.style.display='none';ac();init3D();if(R3.scene)disposeScene(R3.scene);
+  const sc=new THREE.Scene(),cam=R3.camera;sc.background=new THREE.Color(0xd89a7a);sc.fog=new THREE.Fog(0xd8a080,30,140);R3.scene=sc;sc.add(cam);R3.flash.intensity=0;if(R3.lantern)R3.lantern.intensity=0;
+  sc.add(new THREE.HemisphereLight(0xffd8b8,0x3a3040,1.1));const sun=new THREE.DirectionalLight(0xffb880,1.6);sun.position.set(-60,25,-80);sc.add(sun);
+  const add=(geo,m,x,y,z)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);sc.add(o);return o};
+  const ground=add(new THREE.PlaneGeometry(400,400),std({map:TEX.asphalt([60,60])}),0,0,0);ground.rotation.x=-Math.PI/2;
+  const pav=add(new THREE.PlaneGeometry(40,30),std({color:0x8a847c}),0,.01,0);pav.rotation.x=-Math.PI/2;
+  for(let i=0;i<40;i++){const a=i/40*6.28,r=rnd(32,90),w=rnd(8,16),h=rnd(10,40);const b=add(new THREE.BoxGeometry(w,h,w),std({map:(()=>{const t=winTex(pick(['#5a5a5e','#6a5e52','#4e5660']));t.repeat.set(2,Math.round(h/4));return t})()}),Math.cos(a)*r,h/2,Math.sin(a)*r)}
+  // the caged creature, held in the floodlight
+  const cage=new THREE.Group();cage.position.set(-9,0,4);sc.add(cage);const steel=std({color:0x6a6e74,metalness:.7,roughness:.4});
+  for(let k=0;k<12;k++){const a=k/12*6.28;const b=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,2.8,6),steel);b.position.set(Math.cos(a)*2.4,1.4,Math.sin(a)*1.6);cage.add(b)}
+  const cre=creatureMesh();cre.position.set(-9,0,4);cre.rotation.y=-.6;sc.add(cre);const cst={state:'investigate',anim:0,stun:1};
+  const fl=new THREE.SpotLight(0xffffff,30,20,.5,.4,1.2);fl.position.set(-5,6,7);fl.target.position.set(-9,0,4);sc.add(fl);sc.add(fl.target);
+  // you and your people
+  const ppl=[],others=G.people.filter(p=>p.alive!==false&&p.id!=='you');const cols=[0x3a4a3a,0x5a3a6a,0x6a4a2a,0x2a4a6a,0x7a2a2a,0x4a6a6a];
+  for(let i=0;i<=others.length;i++){const h=humanoid(cols[i%cols.length]);const p={m:h,x:8+i*1.1,z:6+(i%2)*1.2,in:false};h.position.set(p.x,0,p.z);sc.add(h);ppl.push(p)}
+  const heli=helicopterMesh();sc.add(heli);const H=heli.userData;
+  RS={running:true,t:0,last:performance.now(),done,boarded:0};
+  const sk=document.createElement('button');sk.id='rsSkip';sk.className='btn';sk.textContent='Skip ⏭';sk.style.cssText='position:fixed;right:18px;bottom:18px;z-index:60';sk.onclick=()=>rsEnd();document.body.appendChild(sk);
+  gl.style.display='block';cv.style.display='block';resizeCv();R3.renderer.setSize(innerWidth,innerHeight,false);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();
+  const subs=[[0,'Dawn.'],[2.4,'For the first time in weeks, the city is loud.'],[7,''],[12.5,'The helicopter lifts you out of the city.'],[16,'Below, in the square, the cage holds.'],[19.5,'']];
+  function frame(now){if(!RS||!RS.running)return;const dt=Math.min(.05,(now-RS.last)/1000);RS.last=now;RS.t+=dt;const t=RS.t;
+    let sub='';for(const [a,s] of subs)if(t>=a)sub=s;
+    // helicopter path: fly in, land, wait, take off and away
+    let hx,hy,hz,ry=Math.PI*.15;
+    if(t<6){const k=t/6,e=1-Math.pow(1-k,3);hx=60-60*e;hy=40-39.4*e;hz=-50+52*e;ry=-.5+.5*e}
+    else if(t<12){hx=0;hy=.6;hz=2}
+    else{const k=(t-12)/8,e=k*k;hx=-90*e;hy=.6+50*e;hz=2-70*e;ry=.0}
+    heli.position.set(hx,hy,hz);heli.rotation.y=ry+Math.PI/2;heli.rotation.z=t<6?.12:t>12?-.18:0;H.rot.rotation.y+=dt*28;H.tr.rotation.z+=dt*40;H.beacon.visible=Math.sin(t*8)>0;H.sl.intensity=t<12?25:0;
+    // people run to it and climb in
+    if(t>6.5)ppl.forEach((p,i)=>{if(p.in)return;if(t<6.5+i*.5)return;const tx=1.2,tz=3.3,dx=tx-p.x,dz=tz-p.z,d=Math.hypot(dx,dz);
+      if(d>.3){const sp=3.4*dt;p.x+=dx/d*sp;p.z+=dz/d*sp;p.m.rotation.y=Math.atan2(-dx,-dz);const sw=Math.sin(t*12)*.7,ud=p.m.userData;ud.legs[0].rotation.x=sw;ud.legs[1].rotation.x=-sw;ud.arms[0].rotation.x=-sw;ud.arms[1].rotation.x=sw}
+      else{p.in=true;p.m.visible=false;tone(400+i*60,.08,'sine',.02)}p.m.position.set(p.x,0,p.z)});
+    // the creature strains against the bars
+    cst.anim+=dt;animCreature(cre.userData,Math.sin(t*3)>.4?1.5:0,cst,dt);cre.position.x=-9+Math.sin(t*2.2)*.25;
+    // rotor sound
+    RS.ch=(RS.ch||0)-dt;if(RS.ch<=0){RS.ch=.09;const vol=t<6?.01+.03*t/6:t<12?.04:Math.max(0,.04-.04*(t-12)/8);tone(52,.06,'square',vol);hiss(.05,vol*.8,700)}
+    // camera
+    let cp,ct;if(t<6){cp=[18,3,22];ct=[hx,hy+1,hz]}else if(t<12){cp=[10,2.4,14];ct=[1,1.5,2]}else{const k=Math.min(1,(t-12)/3);cp=[hx+12-k*4,hy+4+k*6,hz+14];ct=[hx,hy,hz];if(t>15){cp=[hx+6,hy+3,hz+9];ct=[-9,0,4]}}
+    cam.position.set(cp[0],cp[1],cp[2]);cam.lookAt(ct[0],ct[1],ct[2]);
+    R3.renderer.render(sc,cam);
+    const W=innerWidth/HS(),Hh=innerHeight/HS();cx.clearRect(0,0,W,Hh);const bars=Math.min(1,t/1.2)*Hh*.09;cx.fillStyle='#000';cx.fillRect(0,0,W,bars);cx.fillRect(0,Hh-bars,W,bars);
+    const fade=t<1?1-t:t>19?Math.min(1,(t-19)/1.4):0;if(fade>0){cx.fillStyle=`rgba(0,0,0,${fade})`;cx.fillRect(0,0,W,Hh)}
+    if(sub){cx.textAlign='center';cx.textBaseline='middle';cx.font='20px Georgia';cx.fillStyle='#f4ead8';cx.fillText(sub,W/2,Hh-bars-34)}
+    if(t>20.6)return rsEnd();requestAnimationFrame(frame)}
+  requestAnimationFrame(frame)}
+function rsEnd(){if(!RS||!RS.running)return;RS.running=false;const sk=$('#rsSkip');if(sk)sk.remove();gl.style.display='none';cv.style.display='none';const d=RS.done;RS=null;if(d)d()}
+
+/* ===================== the trap: you place the cage AND your hiding hut ===================== */
+function trapSpotOK(cx,cy,hw,hh){for(let y=Math.floor(cy/T-hh);y<=Math.floor(cy/T+hh);y++)for(let x=Math.floor(cx/T-hw);x<=Math.floor(cx/T+hw);x++){if(x<0||y<0||x>=MW||y>=MH)return false;if(S.m[y*MW+x]!==0)return false}return true}
+function placeCage(){const tm=S.trapM,tx=Math.floor(S.px/T),ty=Math.floor(S.py/T),cx=(tx+.5)*T,cy=(ty+.5)*T;
+  if(!trapSpotOK(cx,cy,2.5,1.5))return showMsg('Not enough room here. The cage needs open ground: try the middle of the square.',2.6);
+  Object.assign(tm,{cx,cy,x0:cx-2.5*T,x1:cx+2.5*T,y0:cy-1.5*T,y1:cy+1.5*T,phase:'place'});
+  buildTrapSite(R3.scene);S.px=cx;S.py=tm.y1+1.2*T;hiss(.5,.2,700);tone(70,.4,'square',.06,.5);showMsg('You haul the cage frame up and hang the cage. Now set the lure down inside it.',3.5)}
+function placeHut(){const tm=S.trapM,tx=Math.floor(S.px/T),ty=Math.floor(S.py/T);
+  const dc=Math.hypot((tx+.5)*T-tm.cx,(ty+.5)*T-tm.cy)/T;if(dc<5)return showMsg('Too close to the cage. Back off a bit (at least 5 steps).',2.4);if(dc>13)return showMsg("Too far away. You won't make it to the lever in time. Get closer to the cage.",2.6);
+  for(let y=ty-1;y<=ty+1;y++)for(let x=tx-1;x<=tx+1;x++){if(x<0||y<0||x>=MW||y>=MH||S.m[y*MW+x]!==0)return showMsg('Not enough room to put the hut up here. Find a clear patch of ground.',2.4);
+    if(x*T+T>tm.x0-T&&x*T<tm.x1+T&&y*T+T>tm.y0-T&&y*T<tm.y1+T)return showMsg('That is on top of the cage. Move away from it.',2)}
+  // face the cage: pick the side the window goes on
+  const vx=tm.cx-(tx+.5)*T,vy=tm.cy-(ty+.5)*T,dir=Math.abs(vx)>Math.abs(vy)?[Math.sign(vx),0]:[0,Math.sign(vy)];
+  for(let y=ty-1;y<=ty+1;y++)for(let x=tx-1;x<=tx+1;x++){if(x===tx&&y===ty)continue;if(x===tx-dir[0]&&y===ty-dir[1])continue;S.m[y*MW+x]=9}
+  Object.assign(tm,{hx:tx,hy:ty,dir,lx:(tx+.5)*T,ly:(ty+.5)*T,phase:'arm',ang:Math.atan2(vx,vy)});S.px=(tx+.5)*T;S.py=(ty+.5)*T;yaw=Math.atan2(-vx,-vy);
+  buildHut(R3.scene);hiss(.6,.2,900);for(let k=0;k<5;k++)setTimeout(()=>tone(rnd(160,210),.05,'square',.04),k*160);
+  showMsg("The hut is up, with its window looking straight at the cage. It can't see you in here. Switch the lure on.",4)}
+function buildHut(sc){
+  const tm=S.trapM,g=new THREE.Group();g.position.set((tm.hx+.5)*TS,0,(tm.hy+.5)*TS);g.rotation.y=Math.atan2(-tm.dir[0],-tm.dir[1]);sc.add(g);
+  const M=(w,h,d,mat,x,y,z)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);g.add(m);return m};
+  const wood=std({map:rtex('grain')}),dark=std({color:0x2a2a2e}),H2=2.6,R=1.5*TS;
+  // window wall (faces the cage, on local -z), with a wide viewing slot
+  M(3*TS,1.0,.2,wood,0,.5,-R+.4);M(3*TS,.5,.2,wood,0,H2-.25,-R+.4);for(const x of[-1.5,-.5,.5,1.5])M(.1,H2-1.5,.12,dark,x*TS,1+(H2-1.5)/2,-R+.4);
+  const gl=new THREE.Mesh(new THREE.PlaneGeometry(3*TS,H2-1.5),new THREE.MeshStandardMaterial({color:0x9fc8d8,transparent:true,opacity:.16,roughness:.05}));gl.position.set(0,1+(H2-1.5)/2,-R+.4);g.add(gl);
+  for(const sx of[-1,1])M(.2,H2,3*TS,wood,sx*(R-.4),H2/2,0);
+  for(const sx of[-1,1])M(TS,H2,.2,wood,sx*TS,H2/2,R-.4);
+  M(3*TS+.4,.15,3*TS+.4,std({color:0x3a2a24}),0,H2+.07,0);
+  // the lever box, right under the window
+  M(.5,1.1,.4,std({color:0x3a4a3a}),0,.55,-R+1.1);const lever=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,.8,6),std({color:0x6a6e74,metalness:.7}));lever.position.set(0,1.4,-R+1.1);lever.rotation.x=.6;g.add(lever);R3.lever=lever;R3.leverAxis='x';
+  const gl2=new THREE.Mesh(new THREE.SphereGeometry(.08,8,6),new THREE.MeshBasicMaterial({color:0x40ff70}));gl2.position.set(.2,1.2,-R+.9);g.add(gl2);
+  const L=new THREE.PointLight(0xffc880,1,6,1.6);L.position.set(0,H2-.3,0);g.add(L);
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(1.8,.4),new THREE.MeshBasicMaterial({map:canvasTex(256,56,(g2,w,h)=>{g2.fillStyle='#1a1d20';g2.fillRect(0,0,w,h);g2.fillStyle='#e8d8a0';g2.font='bold 30px sans-serif';g2.textAlign='center';g2.fillText('LOOKOUT',w/2,40)})}));
+  sign.position.set(0,H2+.45,-R+.25);sign.rotation.y=Math.PI;g.add(sign)}
 
 titleScreen();
 </script>
