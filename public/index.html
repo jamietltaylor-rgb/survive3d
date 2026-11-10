@@ -265,7 +265,7 @@ const localKey=()=>'qo3d_save_'+who();
 const endKey=()=>'qo3d_end_'+who();
 function gotEndings(){try{return JSON.parse(localStorage.getItem(endKey())||'[]')}catch(e){return[]}}
 function setEndings(a){try{localStorage.setItem(endKey(),JSON.stringify(a))}catch(e){}}
-function saveEnding(e){const g=gotEndings();if(!g.includes(e)){g.push(e);setEndings(g)}}
+function saveEnding(e){if(window.TEST&&TEST.on)return;const g=gotEndings();if(!g.includes(e)){g.push(e);setEndings(g)}}
 async function api(path,body,method){
   const r=await fetch('/api/'+path,{method:method||(body?'POST':'GET'),headers:{'content-type':'application/json',...(ACC.token?{authorization:'Bearer '+ACC.token}:{})},body:body?JSON.stringify(body):undefined});
   let j={};try{j=await r.json()}catch(e){}
@@ -281,7 +281,7 @@ function snapshot(){return{v:1,savedAt:Date.now(),game:G&&!G.over?G:null,endings
 function loadLocal(){try{return JSON.parse(localStorage.getItem(localKey())||'null')}catch(e){return null}}
 let saveTimer=null;
 function saveProgress(){
-  if(!G)return;
+  if(!G||(window.TEST&&TEST.on))return;
   const snap=snapshot();
   try{localStorage.setItem(localKey(),JSON.stringify(snap))}catch(e){}
   if(ACC.token&&ACC.online!==false){clearTimeout(saveTimer);saveTimer=setTimeout(()=>{
@@ -720,7 +720,7 @@ function tunLoop(now){
   const dt=Math.min((now-TU.last)/1000,.05);TU.last=now;
   if(!TU.paused&&!TU.dlg)tunUpdate(dt);
   if(!TU.running)return;
-  tunRender(dt);tunHud();requestAnimationFrame(tunLoop);
+  tunRender(dt);tunHud();testBanner();requestAnimationFrame(tunLoop);
 }
 function tunUpdate(dt){jumpUpdate(dt);
   TU.t+=dt;TU.msgT-=dt;
@@ -1772,7 +1772,7 @@ function buildPart(id){const r=RECIPES.find(x=>x.id===id);if(!r||G.trap[id])retu
 function homeLoop(now){
   if(!HM||!HM.running)return;const dt=Math.min((now-HM.last)/1000,.05);HM.last=now;
   if(HM.dlg&&$('#dlg').style.display!=='flex')HM.dlg=false;
-  if(!HM.paused&&!HM.dlg)homeUpdate(dt);homeRender(dt);homeHud();requestAnimationFrame(homeLoop);
+  if(!HM.paused&&!HM.dlg)homeUpdate(dt);homeRender(dt);homeHud();testBanner();requestAnimationFrame(homeLoop);
 }
 function homeUpdate(dt){jumpUpdate(dt);
   HM.t+=dt;HM.msgT-=dt;if(HM.fire)HM.fire.intensity=HM.fireBase*(.75+Math.random()*.4+Math.sin(HM.t*7)*.1);if(HM.breakIn){breakInUpdate(dt);return}barrClock(dt);barrUpdate(dt);
@@ -2081,11 +2081,11 @@ function startScav(id,day){
   S={id,L,tun,day:!!day,...mp,px:(mp.spawn[0]+.5)*T,py:(mp.spawn[1]+.5)*T,hidden:null,bag:[],cap:8+(has('dex')?4:0),
      time:(LOCS[id].far?120:150)+(tun?60:0),hunt:false,rings:[],noiseT:0,search:null,follower:null,trail:[],trailT:0,msg:'',msgT:0,
      paused:false,running:true,dlg:false,seenHide:false,flashCd:0,flashT:0,beatT:0,helpT:0,cryT:rnd(10,20),t:0,dumped,bob:0,moving:false,flick:0};
-  S.br=breedOf(id);let cxp,cyp;
+  S.br=(window.TEST&&TEST.on&&TEST.breed)?BREEDS[TEST.breed]:breedOf(id);let cxp,cyp;
   if(tun){cxp=1.5*T;cyp=1.5*T}
   else{let k=0;do{const r=pick(mp.rooms);cxp=(ri2(r[0],r[2])+.5)*T;cyp=(ri2(r[1],r[3])+.5)*T;k++}while((solid(mp.m[Math.floor(cyp/T)*MW+Math.floor(cxp/T)])||Math.hypot(cxp-S.px,cyp-S.py)<500)&&k<300)}
   S.cre={x:cxp,y:cyp,state:'wander',tx:cxp,ty:cyp,field:null,tt:-1,distT:0,dormant:tun?16:2,wait:0,lostT:0,lastX:0,lastY:0,anim:0,stun:0,disguised:false};
-  if(!S.surv&&G.day>=2&&id!=='trapsite'&&Math.random()<.4){
+  if(!S.surv&&id!=='trapsite'&&((window.TEST&&TEST.on&&TEST.mimic!=='auto')?TEST.mimic==='on':(G.day>=2&&Math.random()<.4))){
     let q,k=0;do{const r=pick(mp.rooms);q=[ri2(r[0],r[2]),ri2(r[1],r[3])];k++}while((S.m[q[1]*MW+q[0]]!==1||Math.hypot(q[0]-mp.spawn[0],q[1]-mp.spawn[1])<8)&&k<400);
     S.surv=makeMimic((q[0]+.5)*T,(q[1]+.5)*T);S.cre.disguised=true;S.cre.x=S.surv.x;S.cre.y=S.surv.y}
   S.site=mp.site||[];S.fp=mp.fp||[3,2,40];S.rolledTools={};
@@ -2096,7 +2096,7 @@ function startScav(id,day){
     S.trapM={phase:'cage',cx:null,cy:null,lureT:0,cageY:3,dropped:false};S.cre.dormant=70}
   yaw=tun?Math.random()*6.28:0;pitch=0;
   ui.style.display='none';cv.style.display='block';gl.style.display='block';
-  build3D();resizeCv();setTouch('scav');
+  build3D();resizeCv();setTouch('scav');if(window.TEST&&TEST.on)testAfterStart(id);
   showMsg(tun?'You climb up through the basement hatch. It\'s quiet down here... for now.':day?`You walk through the deserted streets to the ${LOCS[id].name.toLowerCase()}. Nothing moves. Nothing.`:`You slip out into the night towards the ${LOCS[id].name.toLowerCase()}.`,4.5);
   startDrone();
   S.last=performance.now();requestAnimationFrame(scavLoop);
@@ -2244,7 +2244,7 @@ function scavLoop(now){
   if(!S||!S.running)return;
   const dt=Math.min((now-S.last)/1000,.05);S.last=now;
   if(!S.paused&&!S.dlg)updScav(dt);
-  if(S.running){render3D(dt);hudScav()}
+  if(S.running){render3D(dt);hudScav();testBanner()}
   requestAnimationFrame(scavLoop);
 }
 function updScav(dt){jumpUpdate(dt);porcelainTick(dt);
@@ -3766,6 +3766,7 @@ function adminPanel(){
     h+=sec('Creatures',`<select id="admLoc" style="background:#151518;color:#ddd;border:1px solid #444;padding:4px">${locOpts}</select> <select id="admBreed" style="background:#151518;color:#ddd;border:1px solid #444;padding:4px">${breedOpts}</select> `+b('Set nest',"admBreed()")+b('Clear all nests',"admClearBreeds()"));
     h+=sec('Go somewhere now',`<select id="admGo" style="background:#151518;color:#ddd;border:1px solid #444;padding:4px">${locOpts}${trapReady()?'<option value="trapsite">🪤 Town Square (trap)</option>':''}</select> `+b('🌞 By day',"admGo(true)")+b('🌙 By night',"admGo(false)"));}
   h+=sec('Endings & scenes',b('🔁 Reset found endings',"setEndings([]);adminMsg('Found endings cleared')")+b('🏆 Mark all endings found',"setEndings(Object.keys(ENDINGS));adminMsg('All endings marked found')")+b('🎬 Play opening cutscene',"adminClose();playIntro(()=>{if(G&&!G.over&&!(HM&&HM.running))enterHome();else if(!G)titleScreen()})")+(inGame?b('🚁 Play rescue cutscene',"adminClose();admRescue()"):''));
+  h+=sec('🧪 Test mode',`<span class="small dim">Play on a copy of your game: jump to any day, any place, any creature, any trap stage. Nothing is saved.</span><br>`+b(TEST.on?'🧪 Open test launcher':'🧪 Start test mode',"testEnter()",'amber')+(TEST.on?b('🚪 Leave test mode',"testExit()",'red'):''));
   h+=`</div><div style="margin-top:10px">${b('Close','adminClose()','amber')}${b('🔒 Lock again',"try{sessionStorage.removeItem('qo_admin')}catch(e){};adminClose()")}</div>`;
   dlg(h);$('#dlgbox').style.maxWidth='760px'}
 function adm(k,n){if(S&&S.running&&k!=='shovel'){for(let i=0;i<n&&S.bag.length<99;i++)S.bag.push(k);S.cap=Math.max(S.cap,S.bag.length)}else G.inv[k]=(G.inv[k]||0)+n;adminMsg(`+${n} ${INAME[k]}`)}
@@ -3783,6 +3784,75 @@ function admClearBreeds(){for(const id in G.locs)delete G.locs[id].breed;adminMs
 function admGo(day){const id=$('#admGo').value;if(!id)return;if(id==='trapsite'&&!G.locs.trapsite)G.locs.trapsite={visits:0,surv:null,file:false,tunnel:false,bonus:false,hidden:true};
   ADMIN.open=false;closeDlg();stopHome();stopTunnel();stopScav();G.acted=false;startScav(id,day)}
 function admRescue(){playRescue(()=>{if(G&&!G.over)enterHome();else titleScreen()})}
+
+/* ===================== admin TEST MODE: a sandbox copy of the game, jump to any day or level ===================== */
+var TEST={on:false,backup:null,breed:'',mimic:'auto',awake:'normal',trapStage:'start'};
+function testEnter(){
+  if(TEST.on)return testPanel();
+  TEST.backup=G?JSON.stringify(G):null;TEST.on=true;
+  if(!G||G.over){newGame('office');G.barr=null}
+  G=JSON.parse(JSON.stringify(G));resetEnergy();testPanel()}
+function testExit(){
+  if(!TEST.on)return;TEST.on=false;ADMIN.open=false;closeDlg();
+  stopScav();stopTunnel();stopHome();stopTravel();if(typeof stopCutscene==='function')stopCutscene();
+  G=TEST.backup?JSON.parse(TEST.backup):null;TEST.backup=null;
+  if(G&&!G.over){dayScreen()}else titleScreen()}
+function testBanner(){if(!TEST.on)return;const W=innerWidth/HS();cx.save();cx.font='bold 13px sans-serif';cx.textAlign='right';cx.textBaseline='top';const t='🧪 TEST MODE · nothing is saved';const w=cx.measureText(t).width+16;
+  cx.fillStyle='rgba(120,40,160,.85)';cx.fillRect(W-w-8,52,w,22);cx.fillStyle='#fff';cx.fillText(t,W-16,56);cx.restore()}
+function testPanel(){
+  ADMIN.open=true;adminPause(true);
+  const sel=(id,opts,val)=>`<select id="${id}" style="background:#151518;color:#ddd;border:1px solid #444;padding:4px;margin:2px">${opts.map(([v,l])=>`<option value="${v}" ${v===val?'selected':''}>${l}</option>`).join('')}</select>`;
+  const b=(lbl,fn,cls='')=>`<button class="btn ${cls}" style="margin:3px;padding:7px 11px;font-size:14px" onclick="${fn}">${lbl}</button>`;
+  const sec=(t,h)=>`<div style="text-align:left;margin:10px 0 4px;border-top:1px solid #333;padding-top:8px"><b style="color:#c88aff">${t}</b><div style="margin-top:4px">${h}</div></div>`;
+  const allLocs=Object.keys(LOCS).map(id=>[id,`${LOCS[id].ic} ${LOCS[id].name}`]);
+  const starts=Object.keys(STARTS).map(id=>[id,`${LOCS[id].ic} ${LOCS[id].name}`]);
+  const breeds=[['','Whatever lives there'],...Object.keys(BREEDS).map(k=>[k,`${BREEDS[k].ic} ${BREEDS[k].n}`])];
+  const survs=[['auto','Normal'],['yes','Yes, someone is there'],['no','No']];
+  let h=`<div class="ic">🧪</div><h2 style="margin:0 0 4px">Test mode</h2><p class="small dim" style="margin:0">You're playing on a <b>copy</b> of your game. Nothing you do here is saved, and your real game comes back when you leave test mode.</p>
+  <div id="admMsg" class="small" style="color:#7fd08a;min-height:18px;transition:opacity .4s"></div><div style="max-height:60vh;overflow:auto;padding-right:6px">`;
+  h+=sec('New test game',`Shelter ${sel('tsStart',starts,G.start)} Day <input id="tsDay" type="number" min="1" max="99" value="${G.day}" style="width:60px;background:#151518;color:#ddd;border:1px solid #444;padding:4px"> ${sel('tsKit',[['normal','Normal supplies'],['rich','Loads of everything'],['empty','Nothing at all']],'normal')} ${sel('tsBarr',[['sealed','Already boarded up'],['open','Must board up (3 min)'],['quick','Must board up (30 sec)']],'sealed')} `+b('▶ Start',"testNewGame()")+
+    `<div class="small dim" style="margin-top:4px">Or just change the day in this game: `+b('Set day',"G.day=Math.max(1,+$('#tsDay').value||1);adminMsg('It is now day '+G.day)")+`</div>`);
+  h+=sec('Launch a level',`Place ${sel('tlLoc',allLocs,'supermarket')} ${sel('tlTime',[['night','🌙 Night'],['day','🌞 Day']],'night')} Creature ${sel('tlBreed',breeds,TEST.breed)}<br>
+    Disguised mimic ${sel('tlMimic',[['auto','Normal'],['on','Yes'],['off','No']],TEST.mimic)} Survivor ${sel('tlSurv',survs,'auto')} File ${sel('tlFile',survs,'auto')} Creature starts ${sel('tlAwake',[['normal','Normal'],['awake','Awake & hunting'],['asleep','Asleep for ages']],TEST.awake)}<br>
+    Trap (Town Square) ${sel('tlTrap',[['start','Set it all up yourself'],['cage','Cage + lure already placed'],['armed','Everything placed, in the hut']],TEST.trapStage)}
+    <label style="margin-left:6px"><input id="tlWalk" type="checkbox"> Do the walk (lanes) first</label><br>`+b('🚀 Launch',"testLaunch()",'amber'));
+  h+=sec('Other levels',b('🕳️ Tunnels (99 energy, tools)',"testTunnels()")+b('🏠 Shelter',"testShelter('normal')")+b('🔨 Barricade challenge',"testShelter('barr')")+b('🌑 Break-in right now',"testShelter('break')")+b('🚶 Just the walk minigame',"testWalk()"));
+  h+=sec('Cutscenes & endings',b('🎬 Opening',"testScene('intro')")+b('🚁 Rescue',"testScene('rescue')")+`${sel('teEnd',Object.keys(ENDINGS).map(k=>[k,ENDINGS[k].ic+' '+ENDINGS[k].t]),'rescued')}`+b('Show ending',"testEnding()"));
+  h+=`</div><div style="margin-top:10px">${b('Close','adminClose()','amber')}${b('🛠️ Admin panel','adminPanel()')}${b('🚪 Leave test mode',"testExit()",'red')}</div>`;
+  dlg(h);$('#dlgbox').style.maxWidth='820px'}
+function testNewGame(){
+  const st=$('#tsStart').value,day=Math.max(1,+$('#tsDay').value||1),kit=$('#tsKit').value,barr=$('#tsBarr').value;
+  stopScav();stopTunnel();stopHome();newGame(st);G.day=day;
+  if(kit==='rich'){for(const k of Object.keys(ITEMS))if(k!=='shovel'&&k!=='pickaxe')G.inv[k]=40;G.tools.shovel=G.tools.pickaxe=true}
+  if(kit==='empty')for(const k in G.inv)G.inv[k]=0;
+  if(barr==='sealed')G.barr=null;else{G.barr={n:{},carry:0,time:barr==='quick'?30:180}}
+  for(let d=1;d<day;d++)if(Math.random()<.5)breedNight([]);
+  resetEnergy();ADMIN.open=false;closeDlg();HM&&(HM.keepPos=false);enterHome();homeClose()}
+function testLaunch(){
+  const id=$('#tlLoc').value,day=$('#tlTime').value==='day',sv=$('#tlSurv').value,fl=$('#tlFile').value;
+  TEST.breed=$('#tlBreed').value;TEST.mimic=$('#tlMimic').value;TEST.awake=$('#tlAwake').value;TEST.trapStage=$('#tlTrap').value;
+  if(id==='trapsite'){Object.assign(G.trap,{chains:true,battery:true,speaker:true,flood:true,cage:true,lure:true,light:true})}
+  if(!G.locs[id])G.locs[id]={visits:0,surv:null,file:false,tunnel:false,bonus:false,far:!!LOCS[id].far,hidden:!!LOCS[id].hidden};
+  const L=G.locs[id];
+  if(sv==='yes'&&!L.surv){const pool=Object.keys(SURV).filter(k=>!G.people.some(p=>p.id===k));L.surv=pool.length?pick(pool):null}
+  if(sv==='no')L.surv=null;
+  if(fl==='yes')L.file=true;if(fl==='no')L.file=false;
+  ADMIN.open=false;closeDlg();stopHome();stopTunnel();stopScav();G.acted=false;
+  if($('#tlWalk')&&$('#tlWalk').checked)travelGame(id,day);else startScav(id,day)}
+function testAfterStart(id){
+  const c=S.cre;
+  if(TEST.awake==='awake'&&!c.disguised){c.dormant=0;c.state='investigate';c.tx=S.px;c.ty=S.py}
+  if(TEST.awake==='asleep')c.dormant=9999;
+  if(id==='trapsite'&&TEST.trapStage!=='start'){const sx=S.px,sy=S.py;S.px=11.5*T;S.py=25.5*T;placeCage();trapAct('tplace');
+    if(TEST.trapStage==='armed'){S.px=20.5*T;S.py=25.5*T;placeHut()}else{S.px=sx;S.py=sy}}
+  showMsg('🧪 Test level: '+LOCS[id].name+(S.br&&S.br!==BREEDS.listener?' · '+S.br.n:'')+(c.disguised?' · mimic':''),3)}
+function testTunnels(){ADMIN.open=false;closeDlg();stopScav();stopHome();G.tools.shovel=G.tools.pickaxe=true;G.energy=99;startTunnel3D()}
+function testShelter(kind){ADMIN.open=false;closeDlg();stopScav();stopTunnel();
+  if(kind==='barr'||kind==='break')G.barr={n:{},carry:0,time:kind==='break'?.5:180};
+  if(HM)HM.keepPos=false;enterHome();homeClose();if(kind==='break')setTimeout(()=>{if(HM&&HM.running&&!HM.breakIn)startBreakIn()},400)}
+function testWalk(){const id=$('#tlLoc').value,day=$('#tlTime').value==='day';if(!G.locs[id])G.locs[id]={visits:0,surv:null,file:false,tunnel:false,bonus:false,far:!!LOCS[id].far};ADMIN.open=false;closeDlg();stopHome();G.acted=false;travelGame(id,day)}
+function testScene(k){ADMIN.open=false;closeDlg();const back=()=>{if(G&&!G.over){enterHome();homeClose()}};if(k==='intro')playIntro(back);else playRescue(back)}
+function testEnding(){const e=$('#teEnd').value;ADMIN.open=false;closeDlg();stopScav();stopHome();stopTunnel();finish.cs=true;finish(e);finish.cs=false}
 
 titleScreen();
 </script>
