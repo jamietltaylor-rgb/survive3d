@@ -2109,7 +2109,7 @@ function blocked(x,y,r){return solid(tileAt(x-r,y-r))||solid(tileAt(x+r,y-r))||s
 function los(x0,y0,x1,y1){const d=Math.hypot(x1-x0,y1-y0),n=Math.ceil(d/10);for(let i=1;i<n;i++){const t=i/n;if(tileAt(x0+(x1-x0)*t,y0+(y1-y0)*t)===2)return false}return true}
 function bfsFrom(ti){const d=new Int16Array(MW*MH).fill(-1),q=[ti];d[ti]=0;let h=0;
   while(h<q.length){const c=q[h++],x=c%MW,y=(c/MW)|0;for(const [a,b] of DIRS){const nx=x+a,ny=y+b;if(nx<0||ny<0||nx>=MW||ny>=MH)continue;const n=ny*MW+nx;if(d[n]>=0||solid(S.m[n]))continue;d[n]=d[c]+1;q.push(n)}}return d}
-function creMove(c,tx,ty,spd,dt){if(S&&c===S.cre&&S.br&&S.br.freeze&&S.looked)return false;if(S&&c===S.cre&&S.br)spd*=S.br.spd*(S.day&&S.br.dayMul?S.br.dayMul:1);
+function creMove(c,tx,ty,spd,dt){if(S&&c===S.cre&&(ADMIN.freeze||S.br&&S.br.freeze&&S.looked))return false;if(S&&c===S.cre&&S.br)spd*=S.br.spd*(S.day&&S.br.dayMul?S.br.dayMul:1);
   const tt=tileIdx(tx,ty);
   if(tt!==c.tt||c.distT<=0){c.tt=tt;c.field=bfsFrom(tt);c.distT=.6}
   c.distT-=dt;
@@ -2122,7 +2122,7 @@ function creMove(c,tx,ty,spd,dt){if(S&&c===S.cre&&S.br&&S.br.freeze&&S.looked)re
   return Math.hypot(tx-c.x,ty-c.y)<14;
 }
 function randomFloor(){for(let k=0;k<400;k++){const x=ri2(0,MW-1),y=ri2(0,MH-1);if(!solid(S.m[y*MW+x]))return[(x+.5)*T,(y+.5)*T]}return[S.cre.x,S.cre.y]}
-function noise(x,y,r,col){if(S&&S.trapM&&inBooth(x,y))r*=.2;
+function noise(x,y,r,col){if(ADMIN.invis&&S&&S.running&&Math.hypot(x-S.px,y-S.py)<6)return;if(S&&S.trapM&&inBooth(x,y))r*=.2;
   S.rings.push({x,y,r:0,R:r,life:1,col:col||'255,255,255'});
   const c=S.cre,d=Math.hypot(c.x-x,c.y-y);
   if(d<r*(S.day?.55:1)*(S.br?S.br.hear:1)){if(c.dormant>0)c.dormant=0;if(c.state!=='chase'){c.state='investigate';c.tx=x;c.ty=y;c.wait=0}}
@@ -2232,7 +2232,7 @@ function jumpscare(){
   cx.clearRect(0,0,innerWidth,innerHeight);cx.fillStyle='rgba(140,0,0,.35)';cx.fillRect(0,0,innerWidth,innerHeight);
 }
 function caught(){
-  if(!S.running)return;S.running=false;stopDrone();scream();unlock();if(SET.jump)jumpscare();else{cx.clearRect(0,0,innerWidth,innerHeight);cx.fillStyle='rgba(0,0,0,.9)';cx.fillRect(0,0,innerWidth,innerHeight)}
+  if(!S.running)return;if(ADMIN.god){const c=S.cre;c.stun=4;c.state='flee';try{pickFlee(c)}catch(e){}showMsg('🛡️ God mode: it bounced right off you.',1.6);return}S.running=false;stopDrone();scream();unlock();if(SET.jump)jumpscare();else{cx.clearRect(0,0,innerWidth,innerHeight);cx.fillStyle='rgba(0,0,0,.9)';cx.fillRect(0,0,innerWidth,innerHeight)}
   const y=you();y.hp-=45;
   let txt=S.caughtText||`🌑 It caught you at the ${LOCS[S.id].name.toLowerCase()}. You tore free and ran, but dropped everything (-45 HP).`;
   if(S.follower){G.lost++;txt+=` ${S.follower.name} didn't make it out.`}
@@ -2259,7 +2259,7 @@ function updScav(dt){jumpUpdate(dt);porcelainTick(dt);
   if(S.hidden){/* frozen */}
   else if(ml>0){
     if(S.search){S.search=null;showMsg('Search interrupted.',1)}
-    mx/=ml;my/=ml;const sp=sneak?62:run?195:112;
+    mx/=ml;my/=ml;const sp=(sneak?62:run?195:112)*ADMIN.speed;
     const stuck=blocked(S.px,S.py,9);const nx=S.px+mx*sp*dt;if(stuck||!blocked(nx,S.py,9))S.px=nx;
     const ny=S.py+my*sp*dt;if(stuck||!blocked(S.px,ny,9))S.py=ny;
     S.moving=true;S.bob+=dt*(sneak?5:run?13:8.5);
@@ -2287,7 +2287,7 @@ function updScav(dt){jumpUpdate(dt);porcelainTick(dt);
   else{
     if(S.surv&&!S.surv.mimic&&S.surv.mode==='flee'){c.state='npc';creMove(c,S.surv.x,S.surv.y,165,dt);if(Math.hypot(c.x-S.surv.x,c.y-S.surv.y)<26)npcTaken()}else{
     if(c.state==='npc'){c.state='wander';wanderTarget(c)}
-    const vis=(inBooth(S.px,S.py)?0:1)*(S.mode==='run'?230:S.mode==='sneak'?105:150)*(S.day?2.3:1)*(S.br?S.br.see*(S.day&&S.br.dayMul?.6:1):1);
+    const vis=(inBooth(S.px,S.py)||ADMIN.invis?0:1)*(S.mode==='run'?230:S.mode==='sneak'?105:150)*(S.day?2.3:1)*(S.br?S.br.see*(S.day&&S.br.dayMul?.6:1):1);
     const sees=!S.hidden&&pd<vis&&los(c.x,c.y,S.px,S.py);
     if(sees||(S.hunt&&!S.hidden)){if(c.state!=='chase'&&sees){scream();showMsg('IT SEES YOU. RUN!',2)}c.state='chase';c.lostT=0;c.lastX=S.px;c.lastY=S.py}
     if(c.state==='chase'){
@@ -3152,7 +3152,7 @@ function barrClock(dt){
   if(cross(10)){homeMsg('It is climbing up the wall outside!',3)}
   if(T<20){HM.scrT=(HM.scrT||0)-dt;if(HM.scrT<=0){HM.scrT=rnd(.8,1.6);hiss(.25,.05+.04*(1-T/20),700);tone(rnd(40,55),.25,'square',.02)}}
   if(T<=0)startBreakIn()}
-function startBreakIn(){
+function startBreakIn(){if(ADMIN.god){G.barr.time=60;homeMsg('🛡️ God mode: it gave up trying to get in.',2.5);return}
   const open=BARR.filter(b=>(G.barr.n[b.id]||0)<b.need),pickB=open.find(b=>b.id!=='door')||open[0];if(!pickB)return;
   const P=barrPos(pickB.id),v=[Math.sin(P.ry),Math.cos(P.ry)];
   const m=creatureMesh();m.rotation.y=Math.atan2(-v[0],-v[1]);R3.scene.add(m);R3.cre=m;
@@ -3729,6 +3729,60 @@ function buildHut(sc){
   const L=new THREE.PointLight(0xffc880,1,6,1.6);L.position.set(0,H2-.3,0);g.add(L);
   const sign=new THREE.Mesh(new THREE.PlaneGeometry(1.8,.4),new THREE.MeshBasicMaterial({map:canvasTex(256,56,(g2,w,h)=>{g2.fillStyle='#1a1d20';g2.fillRect(0,0,w,h);g2.fillStyle='#e8d8a0';g2.font='bold 30px sans-serif';g2.textAlign='center';g2.fillText('LOOKOUT',w/2,40)})}));
   sign.position.set(0,H2+.45,-R+.25);sign.rotation.y=Math.PI;g.add(sign)}
+
+/* ===================== hidden admin panel: tap the bottom-right corner 5 times ===================== */
+const ADMIN={god:false,invis:false,freeze:false,speed:1,open:false,taps:[]};
+const ADMIN_HASH='e8b883b1eadaa53446833525b155e4b887ae7d07cffd94befc49761fbb71d69b';
+addEventListener('pointerdown',e=>{
+  if(e.clientX<innerWidth-48||e.clientY<innerHeight-48)return;if(e.target&&e.target.closest&&e.target.closest('button,.tb,input,select'))return;
+  const now=performance.now();ADMIN.taps=ADMIN.taps.filter(t=>now-t<6000);ADMIN.taps.push(now);
+  if(ADMIN.taps.length>=5){ADMIN.taps=[];adminOpen()}},true);
+function adminPause(on){const a=act();if(a)a.dlg=on;if(on){for(const k in keys)keys[k]=false;unlock()}}
+function adminOpen(){if(ADMIN.open)return;ADMIN.open=true;adminPause(true);
+  let ok=false;try{ok=sessionStorage.getItem('qo_admin')==='1'}catch(e){}
+  if(ok)return adminPanel();
+  dlg(`<div class="ic">🔒</div><h2 style="margin:0 0 10px">Admin</h2><p class="small dim">Enter the password.</p>
+    <input id="admPw" type="password" autocomplete="off" style="font-size:18px;padding:8px 10px;border-radius:6px;border:1px solid #555;background:#111;color:#eee;width:220px;text-align:center" onkeydown="if(event.key==='Enter')adminTry()">
+    <p id="admErr" class="small" style="color:#e07a6a;min-height:18px;margin:8px 0"></p><button class="btn amber" onclick="adminTry()">Unlock</button> <button class="btn" onclick="adminClose()">Cancel</button>`);
+  setTimeout(()=>{const i=$('#admPw');if(i)i.focus()},50)}
+async function adminTry(){const v=($('#admPw')||{}).value||'';let h='';
+  try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v));h=[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}catch(e){h=btoa(v)==='UGl4aWU='?ADMIN_HASH:''}
+  if(h===ADMIN_HASH){try{sessionStorage.setItem('qo_admin','1')}catch(e){}tone(660,.1,'sine',.03);adminPanel()}
+  else{const er=$('#admErr');if(er)er.textContent='Wrong password.';tone(140,.2,'square',.03);const i=$('#admPw');if(i){i.value='';i.focus()}}}
+function adminClose(){ADMIN.open=false;closeDlg();adminPause(false);if(HM&&HM.running)HM.dlg=false}
+function adminMsg(t){const el=$('#admMsg');if(el){el.textContent='✓ '+t;el.style.opacity=1;clearTimeout(adminMsg.t);adminMsg.t=setTimeout(()=>{if($('#admMsg'))$('#admMsg').style.opacity=.0},1800)}if(G)saveProgress()}
+function adminPanel(){
+  const inGame=!!(G&&!G.over),b=(lbl,fn,cls='')=>`<button class="btn ${cls}" style="margin:3px;padding:7px 11px;font-size:14px" onclick="${fn}">${lbl}</button>`,tg=(k,lbl)=>b(`${ADMIN[k]?'✅':'⬜'} ${lbl}`,`ADMIN.${k}=!ADMIN.${k};adminPanel()`);
+  const sec=(t,h)=>`<div style="text-align:left;margin:10px 0 4px;border-top:1px solid #333;padding-top:8px"><b style="color:#d9a441">${t}</b><div>${h}</div></div>`;
+  const locOpts=inGame?Object.keys(G.locs).filter(id=>LOCS[id]&&!LOCS[id].hidden).map(id=>`<option value="${id}">${LOCS[id].ic} ${LOCS[id].name}</option>`).join(''):'';
+  const breedOpts=Object.keys(BREEDS).map(k=>`<option value="${k}">${BREEDS[k].ic} ${BREEDS[k].n}</option>`).join('');
+  let h=`<div class="ic">🛠️</div><h2 style="margin:0 0 4px">Admin panel</h2><div id="admMsg" class="small" style="color:#7fd08a;min-height:18px;transition:opacity .4s"></div>
+  <div style="max-height:62vh;overflow:auto;padding-right:6px">`;
+  h+=sec('Cheats',tg('god','God mode (it can\'t hurt you)')+tg('invis','Invisible (it can\'t see or hear you)')+tg('freeze','Freeze the creature')+b(`🏃 Speed x${ADMIN.speed}`,`ADMIN.speed=ADMIN.speed>=3?1:ADMIN.speed+1;adminPanel()`));
+  if(inGame){
+    h+=sec('Supplies',b('🥫 +10 food',"adm('food',10)")+b('💧 +10 water',"adm('water',10)")+b('💊 +5 medicine',"adm('meds',5)")+b('🪵 +10 planks',"adm('planks',10)")+b('🔩 +10 metal',"adm('metal',10)")+b('🏗️ +10 poles',"adm('poles',10)")+b('🪏⛏️ Both tools',"admTools()"));
+    h+=sec('People',b('❤️ Heal everyone',"admHeal()")+b('⚡ Full energy',"admEnergy()")+b('🧍 Add a survivor',"admSurvivor()"));
+    h+=sec('Story',b('🪤 All trap parts',"admTrap(false)")+b('🪤 Trap fully built',"admTrap(true)")+b('📁 All 3 files',"admFiles()")+b('🗺️ Unlock every place',"admUnlock()")+b('🔨 Board up the shelter now',"admBoard()")+b('⏭ Next day',"admDay(1)")+b('⏮ Previous day',"admDay(-1)"));
+    h+=sec('Creatures',`<select id="admLoc" style="background:#151518;color:#ddd;border:1px solid #444;padding:4px">${locOpts}</select> <select id="admBreed" style="background:#151518;color:#ddd;border:1px solid #444;padding:4px">${breedOpts}</select> `+b('Set nest',"admBreed()")+b('Clear all nests',"admClearBreeds()"));
+    h+=sec('Go somewhere now',`<select id="admGo" style="background:#151518;color:#ddd;border:1px solid #444;padding:4px">${locOpts}${trapReady()?'<option value="trapsite">🪤 Town Square (trap)</option>':''}</select> `+b('🌞 By day',"admGo(true)")+b('🌙 By night',"admGo(false)"));}
+  h+=sec('Endings & scenes',b('🔁 Reset found endings',"setEndings([]);adminMsg('Found endings cleared')")+b('🏆 Mark all endings found',"setEndings(Object.keys(ENDINGS));adminMsg('All endings marked found')")+b('🎬 Play opening cutscene',"adminClose();playIntro(()=>{if(G&&!G.over&&!(HM&&HM.running))enterHome();else if(!G)titleScreen()})")+(inGame?b('🚁 Play rescue cutscene',"adminClose();admRescue()"):''));
+  h+=`</div><div style="margin-top:10px">${b('Close','adminClose()','amber')}${b('🔒 Lock again',"try{sessionStorage.removeItem('qo_admin')}catch(e){};adminClose()")}</div>`;
+  dlg(h);$('#dlgbox').style.maxWidth='760px'}
+function adm(k,n){if(S&&S.running&&k!=='shovel'){for(let i=0;i<n&&S.bag.length<99;i++)S.bag.push(k);S.cap=Math.max(S.cap,S.bag.length)}else G.inv[k]=(G.inv[k]||0)+n;adminMsg(`+${n} ${INAME[k]}`)}
+function admTools(){G.tools=G.tools||{};G.tools.shovel=true;G.tools.pickaxe=true;adminMsg('You have a shovel and a pickaxe')}
+function admHeal(){for(const p of G.people)if(p.alive!==false){p.hp=100;p.hunger=0;p.thirst=0}adminMsg('Everyone is fully healed')}
+function admEnergy(){resetEnergy();G.energy+=10;adminMsg('Energy restored (+10 for digging)')}
+function admSurvivor(){const pool=Object.keys(SURV).filter(k=>!G.people.some(p=>p.id===k));if(!pool.length)return adminMsg('Everyone is already here');G.people.push(mkPerson(pick(pool)));G.rescued++;adminMsg('A survivor joined you');if(HM&&HM.running){HM.keepPos=true;enterHome();adminPanel();adminPause(true)}}
+function admTrap(built){Object.assign(G.trap,{chains:true,battery:true,speaker:true,flood:true});if(built)Object.assign(G.trap,{cage:true,lure:true,light:true});adminMsg(built?'The trap is built and ready':'You have all four trap parts')}
+function admFiles(){let n=0;for(const id in G.locs)if(G.locs[id].file)G.locs[id].file=false;G.files=3;adminMsg('All 3 Project Listener files found')}
+function admUnlock(){for(const b of BATCHES)for(const id of b)if(!G.locs[id])G.locs[id]={visits:0,surv:null,file:false,tunnel:false,bonus:false,far:true};for(const id in G.locs)if(G.locs[id].visits<1)G.locs[id].visits=1;placeFar();adminMsg('Every place is unlocked')}
+function admBoard(){if(!G.barr)return adminMsg('Already boarded up');for(const B of BARR)G.barr.n[B.id]=B.need;G.barr.carry=0;adminMsg('The shelter is boarded up');if(HM&&HM.running){HM.keepPos=true;enterHome();adminPanel();adminPause(true)}}
+function admDay(d){G.day=Math.max(1,G.day+d);adminMsg('It is now day '+G.day)}
+function admBreed(){const id=$('#admLoc').value,b=$('#admBreed').value;if(!G.locs[id])return;if(b==='listener')delete G.locs[id].breed;else G.locs[id].breed=b;adminMsg(`${BREEDS[b].n} now nests in the ${LOCS[id].name}`)}
+function admClearBreeds(){for(const id in G.locs)delete G.locs[id].breed;adminMsg('All nests cleared')}
+function admGo(day){const id=$('#admGo').value;if(!id)return;if(id==='trapsite'&&!G.locs.trapsite)G.locs.trapsite={visits:0,surv:null,file:false,tunnel:false,bonus:false,hidden:true};
+  ADMIN.open=false;closeDlg();stopHome();stopTunnel();stopScav();G.acted=false;startScav(id,day)}
+function admRescue(){playRescue(()=>{if(G&&!G.over)enterHome();else titleScreen()})}
 
 titleScreen();
 </script>
