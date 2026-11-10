@@ -879,13 +879,15 @@ function genMap(id,tun,tries=0){
   // furniture for this kind of building
   const D=th.deco;
   let lastAx=-1;
+  if(id==='radio')extraDeco(id,{m,I,setDeco,rooms,bx0,by0,bx1,by1,hy,VH});
   if(D==='aisle'){for(let ax=bx0+4;ax<=VH-3;ax+=3){lastAx=ax;for(let y=by0+3;y<=by1-4;y++)if(y!==hy&&y!==hy+1)setDeco(ax,y,'aisle')}for(let k=0,x=bx0+3;k<4&&x<VH-1;k++,x+=3)setDeco(x,by1-2,'checkout')}
   else if(D==='rack'){for(let ax=bx0+4;ax<=VH-5;ax+=4)for(let y=by0+3;y<=by1-4;y++)if(y!==hy&&y!==hy+1)setDeco(ax,y,'rack')}
   else if(D==='pew'){const mid=Math.round((bx0+VH)/2);for(let y=by0+6;y<=by1-3;y+=2){for(let x=bx0+3;x<=mid-3;x++)setDeco(x,y,'pew');for(let x=mid+1;x<=VH-4;x++)setDeco(x,y,'pew')}for(let x=mid-2;x<=mid;x++)setDeco(x,by0+2,'altar')}
   else if(D==='counter'){const cy=by1-6===hy?by1-3:by1-6;for(let x=vx[0]+2;x<=(vx[1]||bx1)-2;x++)if(x!==21&&x!==22)setDeco(x,cy,'counter')}
   else if(D==='desk'){shuffle([...rooms]).slice(0,4).forEach(r=>{for(let x=r[0]+2;x<=r[2]-2;x+=2)for(let y=r[1]+2;y<=r[3]-2;y+=2)setDeco(x,y,'desk')})}
   else if(D==='cubicle'){shuffle([...rooms]).slice(0,4).forEach(r=>{for(let x=r[0]+2;x<=r[2]-3;x+=3)for(let y=r[1]+2;y<=r[3]-2;y+=3){setDeco(x,y,'cubicle');setDeco(x+1,y,'cubicle')}})}
-  else if(D==='home'){rooms.forEach(r=>{for(const t of shuffle(['sofa','bed','table','table','sofa']).slice(0,ri2(1,2)))for(let k=0;k<40;k++){const x=ri2(r[0]+2,r[2]-2),y=ri2(r[1]+2,r[3]-2);if(m[I(x,y)]===1&&!nearDoor(x,y)&&!DIRS.some(([a,b])=>m[I(x+a,y+b)]===8)){setDeco(x,y,t);break}}})}
+  if(id!=='radio')extraDeco(id,{m,I,setDeco,rooms,bx0,by0,bx1,by1,hy,VH});
+  if(D==='home'){rooms.forEach(r=>{for(const t of shuffle(['sofa','bed','table','table','sofa']).slice(0,ri2(1,2)))for(let k=0;k<40;k++){const x=ri2(r[0]+2,r[2]-2),y=ri2(r[1]+2,r[3]-2);if(m[I(x,y)]===1&&!nearDoor(x,y)&&!DIRS.some(([a,b])=>m[I(x+a,y+b)]===8)){setDeco(x,y,t);break}}})}
   const conts=new Map();
   // some aisle/rack shelves are searchable
   if(D==='aisle'||D==='rack'){const cols={};for(const [i,t] of deco)if(t==='aisle'||t==='rack')(cols[i%MW]=cols[i%MW]||[]).push(i);
@@ -1992,6 +1994,7 @@ function buildDeco(sc){
     else if(t==='bed'){add('bed',TS*.92,.45,TS*.95,M.blanket,X,.25,Z);add('pillow',.7,.12,.32,M.cloth,X,.53,Z-.6);add('head',TS*.95,.85,.08,M.wood,X,.45,Z-.95)}
     else if(t==='table'){add('table',TS*.85,.06,TS*.85,M.wood,X,.75,Z);add('tleg',.14,.72,.14,M.wood,X,.36,Z)}}
   const m4=new THREE.Matrix4();
+  decoMeshes(sc,[...S.deco].filter(([i,t])=>['hbed','mach','conv','eng','kit','cell','studio','freezer','coffee','sdesk'].includes(t)));
   for(const k in parts){const p=parts[k],im=new THREE.InstancedMesh(new THREE.BoxGeometry(p.w,p.h,p.d),p.mat,p.l.length);p.l.forEach(([x,y,z],i)=>{m4.makeTranslation(x,y,z);im.setMatrixAt(i,m4)});sc.add(im)}
 }
 function build3D(){
@@ -2055,7 +2058,7 @@ function build3D(){
   R3.key=null;
   if(S.key){const kg=new THREE.Group(),P=PARTS[S.key.item];const bx=new THREE.Mesh(new THREE.BoxGeometry(.5,.35,.4),new THREE.MeshStandardMaterial({color:0xd9a441,emissive:0x7a5010,emissiveIntensity:.6}));bx.position.y=.4;kg.add(bx);
     const tg=textSprite(P.ic,'#fff',.5);tg.position.y=1.1;kg.add(tg);const kl=new THREE.PointLight(0xffb040,2,5,1.6);kl.position.y=.9;kg.add(kl);kg.position.set(S.key.x*U,0,S.key.y*U);sc.add(kg);R3.key=kg}
-  if(S.trapM)buildTrapSite(sc);
+  if(S.trapM){buildTrapSite(sc);buildBooth(sc)}
   // survivor
   R3.surv=null;R3.help=null;R3.fol=null;
   if(S.surv){const g=S.surv.mimic?mimicMesh(S.surv):npcMesh(S.surv.id);g.position.set(S.surv.x*U,0,S.surv.y*U);g.rotation.y=Math.random()*6;sc.add(g);R3.surv=g;
@@ -2089,12 +2092,13 @@ function startScav(id,day){
   if(!S.surv&&G.day>=2&&id!=='trapsite'&&Math.random()<.4){
     let q,k=0;do{const r=pick(mp.rooms);q=[ri2(r[0],r[2]),ri2(r[1],r[3])];k++}while((S.m[q[1]*MW+q[0]]!==1||Math.hypot(q[0]-mp.spawn[0],q[1]-mp.spawn[1])<8)&&k<400);
     S.surv=makeMimic((q[0]+.5)*T,(q[1]+.5)*T);S.cre.disguised=true;S.cre.x=S.surv.x;S.cre.y=S.surv.y}
-  S.site=mp.site||[];S.fp=mp.fp||[3,2,40];
+  S.site=mp.site||[];S.fp=mp.fp||[3,2,40];S.rolledTools={};
   S.key=null;const ki=KEYITEMS[id];
   if(ki&&!G.trap[ki]){let q,k=0;do{const r=pick(mp.rooms);q=[ri2(r[0],r[2]),ri2(r[1],r[3])];k++}while(S.m[q[1]*MW+q[0]]!==1&&k<400);S.key={x:(q[0]+.5)*T,y:(q[1]+.5)*T,item:ki}}
   S.trapM=null;
   if(id==='trapsite'){for(let y=22;y<=28;y++)for(let x=6;x<=34;x++)if(S.m[y*MW+x]===5)S.m[y*MW+x]=0;
-    S.trapM={phase:'place',cx:10.5*T,cy:25*T,x0:8*T,x1:13*T,y0:23.5*T,y1:26.5*T,lx:19.5*T,ly:27.6*T,lureT:0,cageY:3,dropped:false};S.cre.dormant=35}
+    for(let x=15;x<=18;x++)S.m[26*MW+x]=9;for(let y=27;y<=28;y++){S.m[y*MW+15]=9;S.m[y*MW+18]=9;S.m[y*MW+16]=0;S.m[y*MW+17]=0}S.m[29*MW+16]=0;S.m[29*MW+17]=0;
+    S.trapM={phase:'place',cx:10.5*T,cy:25*T,x0:8*T,x1:13*T,y0:23.5*T,y1:26.5*T,lx:17*T,ly:27.4*T,lureT:0,cageY:3,dropped:false};S.cre.dormant=35}
   yaw=tun?Math.random()*6.28:0;pitch=0;
   ui.style.display='none';cv.style.display='block';gl.style.display='block';
   build3D();resizeCv();setTouch('scav');
@@ -2123,7 +2127,7 @@ function creMove(c,tx,ty,spd,dt){if(S&&c===S.cre&&S.br)spd*=S.br.spd*(S.day&&S.b
   return Math.hypot(tx-c.x,ty-c.y)<14;
 }
 function randomFloor(){for(let k=0;k<400;k++){const x=ri2(0,MW-1),y=ri2(0,MH-1);if(!solid(S.m[y*MW+x]))return[(x+.5)*T,(y+.5)*T]}return[S.cre.x,S.cre.y]}
-function noise(x,y,r,col){
+function noise(x,y,r,col){if(S&&S.trapM&&inBooth(x,y))r*=.2;
   S.rings.push({x,y,r:0,R:r,life:1,col:col||'255,255,255'});
   const c=S.cre,d=Math.hypot(c.x-x,c.y-y);
   if(d<r*(S.day?.55:1)*(S.br?S.br.hear:1)){if(c.dormant>0)c.dormant=0;if(c.state!=='chase'){c.state='investigate';c.tx=x;c.ty=y;c.wait=0}}
@@ -2271,6 +2275,8 @@ function updScav(dt){jumpUpdate(dt);
     if(s2.t>=s2.dur){s2.c.done=true;S.search=null;finishSearch(s2.c)}}
   S.trailT-=dt;if(S.trailT<=0&&!S.hidden){S.trailT=.08;S.trail.push([S.px,S.py]);if(S.trail.length>14)S.trail.shift()}
   npcUpdate(dt);if(S.hitT>0)S.hitT-=dt;
+  if(S.trapM){const ib=inBooth(S.px,S.py);if(ib&&!S.wasBooth)showMsg("🙈 You're in the lookout hut. It can't see you in here, and it can barely hear you.",3.5);S.wasBooth=ib;
+    const c2=S.cre;if(ib&&S.trapM.phase==='active'&&!c2.caged&&!c2.disguised){if(c2.state==='chase')c2.state='investigate';c2.tx=S.trapM.cx;c2.ty=S.trapM.cy;c2.wait=0;c2.dormant=0}}
   if(S.trapM&&S.trapM.phase==='active'){S.trapM.lureT-=dt;if(S.trapM.lureT<=0){S.trapM.lureT=1.8;noise(S.trapM.cx,S.trapM.cy,3000,'255,210,90');tone(330,.25,'square',.03);tone(247,.25,'square',.03)}}
   if(S.follower){const fo=S.follower,tg=S.trail[0]||[S.px,S.py];const dx=tg[0]-fo.x,dy=tg[1]-fo.y,d=Math.hypot(dx,dy);
     if(d>4){const sp=Math.min(d,220*dt);fo.x+=dx/d*sp;fo.y+=dy/d*sp;fo.moving=true}else fo.moving=false;
@@ -2285,7 +2291,7 @@ function updScav(dt){jumpUpdate(dt);
   else{
     if(S.surv&&!S.surv.mimic&&S.surv.mode==='flee'){c.state='npc';creMove(c,S.surv.x,S.surv.y,165,dt);if(Math.hypot(c.x-S.surv.x,c.y-S.surv.y)<26)npcTaken()}else{
     if(c.state==='npc'){c.state='wander';wanderTarget(c)}
-    const vis=(S.mode==='run'?230:S.mode==='sneak'?105:150)*(S.day?2.3:1)*(S.br?S.br.see*(S.day&&S.br.dayMul?.6:1):1);
+    const vis=(inBooth(S.px,S.py)?0:1)*(S.mode==='run'?230:S.mode==='sneak'?105:150)*(S.day?2.3:1)*(S.br?S.br.see*(S.day&&S.br.dayMul?.6:1):1);
     const sees=!S.hidden&&pd<vis&&los(c.x,c.y,S.px,S.py);
     if(sees||(S.hunt&&!S.hidden)){if(c.state!=='chase'&&sees){scream();showMsg('IT SEES YOU. RUN!',2)}c.state='chase';c.lostT=0;c.lastX=S.px;c.lastY=S.py}
     if(c.state==='chase'){
@@ -2314,15 +2320,10 @@ function finishSearch(ct){
   if(ct.items){R3.scene.remove(ct.items);ct.items=null}if(ct.door)ct.door.rotation.y=ct.doorOpen;
   if(ct.mesh)ct.mesh.material.color.multiplyScalar(.45);
   if(ct.kind==='glass'){noise(S.px,S.py,400,'140,200,255');glassSound();showMsg(SET.loudGlass?'💥 CRASH! The glass shattered!':'🔊 The glass broke. That made some noise...',2);if(ct.glass){R3.scene.remove(ct.glass);ct.glass=null}}
-  if(Math.random()>chance){if(ct.kind!=='glass')showMsg('Empty.',1.2);return}
-  let n=ct.kind==='glass'?2+ri2(0,1):1+(Math.random()<.4?1:0);if(S.L.bonus)n++;
-  const got=[];
-  for(let i=0;i<n;i++){
-    if(S.bag.length>=S.cap){showMsg('Your bag is full!',1.5);break}
-    let it=wpick(L.loot);
-    if((it==='shovel'&&(G.tools.shovel||S.bag.includes('shovel')))||(it==='pickaxe'&&(G.tools.pickaxe||S.bag.includes('pickaxe'))))it=pick(['planks','food','water']);
-    S.bag.push(it);got.push(it);
-  }
+  const loot=ct.loot||[];if(!loot.length){if(ct.kind!=='glass')showMsg('Empty. Someone got here first.',1.4);return}
+  const got=[],left=[];
+  for(const it of loot){if(S.bag.length>=S.cap){left.push(it);continue}S.bag.push(it);got.push(it)}
+  if(left.length){ct.done=false;ct.loot=left;const X=(ct.x+.5)*TS,Z=(ct.y+.5)*TS;ct.items=lootDisplay(ct,X,ct.kind==='desk'?.77:ct.kind==='glass'?.61:ct.kind==='cupboard'?1.4:ct.kind==='box'?.98:ct.kind==='fridge'?2.08:.96,Z,TS*.86);R3.scene.add(ct.items);setTimeout(()=>showMsg('Your bag is full! Left behind: '+left.map(k=>ITEMS[k]).join(' '),2.2),2300)}
   if(got.length){showMsg('Found: '+got.map(k=>ITEMS[k]+' '+INAME[k]).join(', '),2.2);tone(520,.1,'sine',.04,1.4)}
 }
 function render3D(dt){
@@ -2425,7 +2426,7 @@ function hudScav(){
   cx.fillStyle=jam?'#9fe8b8':(cb.out||c.disguised)?'#6fae5a':cd<12?'#ff5040':'#d9a441';
   cx.fillText(jam?'RADAR · interference...':(cb.out||c.disguised)?`RADAR ${rangeM}m · nothing close`:`⚠ IT IS ${cd}m AWAY`,rcx,rcy+RR+5);
   cx.fillStyle='#8a8676';cx.fillText(`${S.hatch?'TUNNEL':'HOME'} ${Math.round(eh.d*U)}m${has('dog')?' · 🐕 long range':''}`,rcx,rcy+RR+20);
-  if(S.trapM){const tm=S.trapM,ob={place:'🪤 Carry the lure into the middle of the cage and set it down (E)',arm:'🪤 Get to the lever by the car park (green light) and switch the lure on',active:trapInZone()?'🪤 IT\'S INSIDE THE CAGE! DROP IT NOW! (E at the lever)':'🪤 Wait by the lever. When it walks into the cage, drop it.',won:'🪤 GOT IT!',failed:'🪤 The trap failed. Get out of there!'}[tm.phase];
+  if(S.trapM){const tm=S.trapM,ob={place:'🪤 Carry the lure into the middle of the cage and set it down (E)',arm:'🪤 Get into the LOOKOUT hut (green light). Inside, it can\'t see you. Then switch the lure on',active:trapInZone()?'🪤 IT\'S INSIDE THE CAGE! DROP IT NOW! (E at the lever)':'🪤 Wait by the lever. When it walks into the cage, drop it.',won:'🪤 GOT IT!',failed:'🪤 The trap failed. Get out of there!'}[tm.phase];
     cx.font='bold 16px Georgia';const ow=cx.measureText(ob).width+30;cx.fillStyle='rgba(40,8,6,.75)';cx.fillRect(W/2-ow/2,rcy+RR+40,ow,30);cx.fillStyle=tm.phase==='active'&&trapInZone()?'#ff6050':'#ffd870';cx.fillText(ob,W/2,rcy+RR+47);
     const cp=pos(tm.cx,tm.cy),lp=pos(tm.lx,tm.ly);cx.fillStyle='#ffd870';cx.fillRect(cp.x-4,cp.y-4,8,8);cx.fillStyle='#70ff90';cx.beginPath();cx.arc(lp.x,lp.y,3,0,7);cx.fill()}
   // search bar
@@ -2446,7 +2447,7 @@ function promptText(){
   if(b.type==='key')return'[E] Take the '+PARTS[S.key.item].n.toLowerCase();
   if(b.type==='tplace')return'[E] Set the lure down inside the cage';
   if(b.type==='lever')return S.trapM.phase==='arm'?'[E] Switch the lure ON':(trapInZone()?'[E] DROP THE CAGE!':'[E] Drop the cage (it isn\'t inside yet!)');if(b.type==='file')return'[E] Pick up the file';
-  if(b.type===3)return'[E] Search';if(b.type===4)return'[E] Hide in the '+theme().hide;if(b.type===5)return'[E] Hide in car';
+  if(b.type===3)return searchLabel(S.conts.get(b.i));if(b.type===4)return'[E] Hide in the '+theme().hide;if(b.type===5)return'[E] Hide in car';
   if(b.type===6||b.type===7)return`[E] Go home${S.follower?' with '+S.follower.name:''}`;
   return'';
 }
@@ -3261,8 +3262,7 @@ function contModel(sc,ct,th){
       for(const sx of[-1,1])for(const sz of[-1,1])add(B(.03,.8,.03),std({color:0xc8a040,metalness:.8,roughness:.3}),sx*F*.49,1.0,sz*F*.29);
       add(B(F,.03,F*.6),std({color:0xc8a040,metalness:.8,roughness:.3}),0,1.41,0);top=.61;break}}
   ct.mesh=main;
-  const items=lootItems(th,X,top,Z,ct.kind==='glass'?3:ri2(2,3));if(ct.kind==='shelf'){items.position.z=0;items.children.forEach(m=>{m.position.z=Z+F*.3+rnd(-.03,.04)})}
-  sc.add(items);ct.items=items}
+  if(!ct.loot)ct.loot=rollLoot(ct);const items=lootDisplay(ct,X,top,Z,F);sc.add(items);ct.items=items}
 
 /* ===================== more realistic cars ===================== */
 function carModel(sc,cx0,Z,len,col){const g=new THREE.Group();g.position.set(cx0,0,Z);sc.add(g);const L=len*TS*.92,Wc=TS*.82,paint=std({color:col,roughness:.35,metalness:.55});
@@ -3355,10 +3355,10 @@ function shelterTheme(sc,id,box){
 
 /* ===================== every location has its own building, shape and grounds ===================== */
 Object.assign(THEMES,{
-  factory:{layout:'hall',deco:'rack',kinds:['shelf','box','box','cupboard'],wall:['#7a7468','#3a3630'],floor:'concrete',floorCol:['#6a6a66'],ceil:'#4a4a48',sign:'IRONWORKS',signBg:'#2a2a2a',signFg:'#e8a040',front:'brick',frontCol:'#7a4a3a',hide:'tool locker',locker:0x4a5a3a},
+  factory:{layout:'hall',deco:'machine',kinds:['shelf','box','box','cupboard'],wall:['#7a7468','#3a3630'],floor:'concrete',floorCol:['#6a6a66'],ceil:'#4a4a48',sign:'IRONWORKS',signBg:'#2a2a2a',signFg:'#e8a040',front:'brick',frontCol:'#7a4a3a',hide:'tool locker',locker:0x4a5a3a},
   petrol:{layout:'hall',deco:'aisle',kinds:['shelf','fridge','box','glass'],wall:['#e8e8e0','#c0392b'],floor:'checker',floorCol:['#dcdcd6','#b0b0aa'],ceil:'#d8d8d4',panels:true,sign:'FUEL · SNACKS',signBg:'#c0392b',signFg:'#fff',front:'glass',frontCol:'#9a9ea4',hide:'staff locker',locker:0x5a6a7a},
   radio:{layout:'rooms',deco:'cubicle',kinds:['desk','cupboard','box','shelf'],wall:['#cfd2d8','#2a2a3a'],floor:'carpet',floorCol:['#3a3e4a'],ceil:'#d0d2d6',panels:true,sign:'CITY RADIO 98.4',signBg:'#111',signFg:'#e04040',front:'glassgrid',frontCol:'#4a4e56',hide:'stationery cupboard',locker:0x8a8e94},
-  firestation:{layout:'hall',deco:'rack',kinds:['cupboard','box','shelf','box'],wall:['#d8d0c0','#a02020'],floor:'concrete',floorCol:['#7a7a76'],ceil:'#6a6a68',sign:'FIRE STATION',signBg:'#a01818',signFg:'#fff',front:'brick',frontCol:'#8a3a2a',hide:'kit locker',locker:0x8a2020},
+  firestation:{layout:'hall',deco:'bay',kinds:['cupboard','box','shelf','box'],wall:['#d8d0c0','#a02020'],floor:'concrete',floorCol:['#7a7a76'],ceil:'#6a6a68',sign:'FIRE STATION',signBg:'#a01818',signFg:'#fff',front:'brick',frontCol:'#8a3a2a',hide:'kit locker',locker:0x8a2020},
   hospital:{layout:'rooms',deco:'counter',kinds:['cupboard','shelf','glass','box'],wall:['#eef0ee','#4a8ab0'],floor:'lino',floorCol:['#c8d4d0'],ceil:'#eceeec',panels:true,sign:"ST ANNE'S HOSPITAL",signBg:'#1a5a9a',signFg:'#fff',front:'glassgrid',frontCol:'#b8bcc0',hide:'linen cupboard',locker:0xd0d4d0},
   police:{layout:'rooms',deco:'desk',kinds:['desk','cupboard','box','shelf'],wall:['#d8dce0','#2a3a6a'],floor:'lino',floorCol:['#8a9098'],ceil:'#d4d6da',panels:true,sign:'POLICE',signBg:'#1a2a6a',signFg:'#fff',front:'brick',frontCol:'#5a4a42',hide:'evidence locker',locker:0x3a4a6a}});
 const SITES={
@@ -3375,7 +3375,7 @@ const SITES={
   firestation:{fp:[5,4,38],kind:'city',up:1,yard:'engines'},
   hospital:{fp:[3,2,40],kind:'city',up:4,yard:'ambulance'},
   police:{fp:[8,5,35],kind:'city',up:2,yard:'police'},
-  trapsite:{fp:[3,2,40],kind:'city',up:0,yard:null}};
+  trapsite:{fp:[3,2,40],kind:'city',up:0,yard:'square'}};
 const siteOf=id=>SITES[id]||SITES.office;
 // lay out the grounds on the tile map: solid things become tile 9, looks go in a list for the 3D build
 function siteGen(id,m,I,fp){
@@ -3407,6 +3407,7 @@ function siteGen(id,m,I,fp){
       for(const [x,y] of[[3,4],[5,15],[2,10],[40,2]])solidR('tree',x,y,1,1);break;
     case 'engines':solidR('engine',7,23,4,2);solidR('engine',29,23,4,2);solidR('ftower',1,4,3,3,{hgt:16});look('apron',4,22,36,2);sideBlocks('shop',()=>rnd(8,14));break;
     case 'ambulance':solidR('ambulance',8,23,3,1);solidR('ambulance',31,23,3,1);look('canopy',6,22,32,3);look('ae',26,22,8,1);solidR('bollard',16,22,1,1);solidR('bollard',27,22,1,1);break;
+    case 'square':look('paving',2,22,40,8);solidR('statue',31,24,2,2);solidR('bench',26,22,2,1);solidR('bench',36,22,2,1);solidR('tree',4,23,1,1);solidR('tree',39,27,1,1);solidR('tree',27,28,1,1);break;
     case 'police':solidR('pcar',4,23,3,1);solidR('pcar',33,24,3,1);for(let x=11;x<=16;x++)solidR('barrier',x,26,1,1);sideBlocks('shop',()=>rnd(9,14));solidR('lamp',18,22,1,1);break;}
   return out}
 // ---- 3D for the grounds ----
@@ -3502,6 +3503,8 @@ function buildSite(sc,th){
       case 'lamp':{add(new THREE.CylinderGeometry(.08,.08,3,8),std({color:0x222}),X,1.5,Z);add(B(.5,.6,.5),new THREE.MeshBasicMaterial({color:0x2a5aff}),X,3.3,Z);if(!DAY){const L=new THREE.PointLight(0x4a7aff,3,10,1.5);L.position.set(X,3.3,Z);sc.add(L)}break}
       case 'bays':{const t=canvasTex(256,64,(g,w,h)=>{g.fillStyle=DAY?'#3a3c40':'#121316';g.fillRect(0,0,w,h);g.fillStyle='rgba(230,230,220,.75)';for(let x=0;x<w;x+=24)g.fillRect(x,6,3,h-12)});t.repeat.set(it.w/10,1);flat(it.x,it.y,it.w,it.h,std({map:t}),.013);break}
       case 'corral':for(let k=0;k<4;k++){const tr=add(B(.55,.9,.85),new THREE.MeshStandardMaterial({color:0xb0b4b8,metalness:.8,wireframe:true}),it.x*TS+1+k*.35,.6,Z)}add(B(W,.06,.06),std({color:0x888,metalness:.7}),X,1.1,Z-.5);break;
+      case 'statue':{add(B(W*.8,1.6,D*.8),std({color:0x8a8680,roughness:1}),X,.8,Z);add(B(W*.9,.15,D*.9),std({color:0x7a766e}),X,1.65,Z);const br=std({color:0x4a5a3a,metalness:.6,roughness:.5});
+        add(new THREE.CylinderGeometry(.3,.35,1.6,10),br,X,2.6,Z);add(new THREE.SphereGeometry(.25,10,8),br,X,3.6,Z);const arm=add(B(.14,1,.14),br,X+.35,3.4,Z);arm.rotation.z=-.9;add(B(.14,.9,.14),br,X-.32,2.9,Z);break}
       case 'car':carModel(sc,X,Z,it.h,pick([0x34465a,0x5a2a2a,0x2a4a3a,0x4a4a4a,0x6a5a3a]));break;}}
 }
 // a different skyline for each kind of area
@@ -3517,6 +3520,108 @@ function buildSurround(sc,kind){
     ring((x,z)=>{add(new THREE.CylinderGeometry(4,4,9,18),std({color:0xa8a8a0,metalness:.4}),x,4.5,z)},5);ring((x,z)=>{add(new THREE.CylinderGeometry(.8,1.2,rnd(18,30),10),std({color:0x6a4a3a}),x,12,z)},4);ring(tree,10)}
   else{ring(tree,70);for(let k=0;k<6;k++){const x=-60+k*45,z=-70;const pm=std({color:0x777,metalness:.5});for(const dx of[-2,2])add(new THREE.BoxGeometry(.3,26,.3),pm,x+dx,13,z);add(new THREE.BoxGeometry(8,.3,.3),pm,x,24,z)}
     const far=std({color:DAY?0x7a8088:0x16181c});for(let x=-200;x<300;x+=rnd(8,16)){const h=rnd(14,46);add(new THREE.BoxGeometry(rnd(8,14),h,10),far,x,h/2,-150)}}}
+
+/* ===================== loot you can SEE is the loot you GET ===================== */
+const KIND_BIAS={fridge:{food:3,water:4},cupboard:{food:2,meds:2,water:1,planks:.6,metal:.4,shovel:1.6,pickaxe:1.6},desk:{meds:1.6,food:1,water:1,metal:.3},
+  box:{planks:2.2,metal:2,poles:1.6,food:1,water:1,shovel:1,pickaxe:1},glass:{meds:3,food:1,water:.5},shelf:{}};
+const KIND_NAME={shelf:'shelves',fridge:'fridge',cupboard:'cupboard',desk:'desk',box:'boxes',glass:'display case'};
+function rollLoot(ct){
+  const dep=1/(1+S.L.visits*.55),chance=Math.min(.97,.85*dep+(S.L.bonus?.25:0));if(Math.random()>chance)return[];
+  let n=ct.kind==='glass'?2+ri2(0,1):1+(Math.random()<.4?1:0);if(S.L.bonus)n++;
+  const base=LOCS[S.id].loot,bias=KIND_BIAS[ct.kind]||{},W={};
+  for(const k in base){if((k==='shovel'||k==='pickaxe')&&(G.tools[k]||S.rolledTools[k]))continue;W[k]=base[k]*(bias[k]!=null?bias[k]:(ct.kind==='shelf'?1:.35))}
+  const out=[];for(let i=0;i<n;i++){const k=wpick(W);if(!k)break;out.push(k);if(k==='shovel'||k==='pickaxe'){S.rolledTools[k]=1;delete W[k]}}return out}
+function lootModel(k){const g=new THREE.Group();const M=(geo,mat,x=0,y=0,z=0)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);g.add(m);return m};
+  switch(k){
+    case 'food':{const n=ri2(1,2);for(let i=0;i<n;i++)M(new THREE.CylinderGeometry(.06,.06,.13,14),[std({map:rtex('label')}),std({color:0xc8c8c8,metalness:.7,roughness:.35}),std({color:0xc8c8c8,metalness:.7,roughness:.35})],i*.14,.065,0);break}
+    case 'water':{for(let i=0;i<2;i++){const b=M(new THREE.CylinderGeometry(.045,.05,.26,12),new THREE.MeshStandardMaterial({color:0x8ac8f0,transparent:true,opacity:.6,roughness:.08}),i*.11,.13,0);M(new THREE.CylinderGeometry(.02,.02,.04,8),std({color:0x2e86c1}),i*.11,.28,0)}break}
+    case 'meds':{M(new THREE.BoxGeometry(.24,.14,.16),std({color:0xf4f4f0}),0,.07,0);M(new THREE.BoxGeometry(.03,.09,.162),std({color:0xc0392b}),0,.075,0);M(new THREE.BoxGeometry(.09,.03,.162),std({color:0xc0392b}),0,.075,0);
+      M(new THREE.CylinderGeometry(.04,.04,.1,10),std({color:0xf0e8d0}),.2,.05,0);M(new THREE.CylinderGeometry(.042,.042,.03,10),std({color:0xe67e22}),.2,.11,0);break}
+    case 'planks':for(let i=0;i<3;i++){const p=M(new THREE.BoxGeometry(.8,.05,.14),std({map:rtex('grain')}),0,.03+i*.05,(i-1)*.03);p.rotation.y=(i-1)*.08}break;
+    case 'metal':for(let i=0;i<3;i++){const t=canvasTex(32,32,(g2,w,h)=>{for(let x=0;x<w;x+=4){g2.fillStyle=x%8?'#8a8e92':'#6a6e72';g2.fillRect(x,0,4,h)}});M(new THREE.BoxGeometry(.6,.025,.42),std({map:t,metalness:.6,roughness:.4}),0,.015+i*.03,0).rotation.y=i*.1}break;
+    case 'poles':for(let i=0;i<2;i++){const p=M(new THREE.CylinderGeometry(.035,.035,1.3,10),std({color:0xa0a4a8,metalness:.8,roughness:.3}),0,.04,i*.09-.04);p.rotation.z=Math.PI/2}break;
+    case 'shovel':{const h=M(new THREE.CylinderGeometry(.025,.025,1.0,8),std({map:rtex('grain')}),0,.03,0);h.rotation.z=Math.PI/2;M(new THREE.BoxGeometry(.3,.02,.24),std({color:0x6a6e72,metalness:.7}),.62,.03,0);M(new THREE.BoxGeometry(.04,.02,.16),std({color:0x222}),-.52,.03,0);break}
+    case 'pickaxe':{const h=M(new THREE.CylinderGeometry(.025,.025,.9,8),std({map:rtex('grain')}),0,.03,0);h.rotation.z=Math.PI/2;const hd=M(new THREE.BoxGeometry(.06,.03,.7),std({color:0x5a5e62,metalness:.7}),.44,.03,0);break}}
+  return g}
+function lootDisplay(ct,X,top,Z,F){
+  const g=new THREE.Group();const L=ct.loot||[];const spots=[];const sp=Math.min(.42,F/(L.length+1));
+  L.forEach((k,i)=>{const m=lootModel(k);const ox=(i-(L.length-1)/2)*Math.max(.35,sp);let x=X+ox,y=top,z=Z;
+    if(ct.kind==='shelf'){z=Z+F*.3}
+    if(ct.kind==='fridge'&&S.id!=='house'&&S.id!=='office'){y=.12;z=Z+F*.35+.25}
+    if(ct.kind==='box'){y=top}
+    if(k==='poles'||k==='planks'||k==='shovel'||k==='pickaxe'){m.rotation.y=Math.PI/2+rnd(-.3,.3);if(ct.kind==='shelf')m.rotation.y=rnd(-.15,.15)}
+    else m.rotation.y=rnd(-.5,.5);
+    m.position.set(x,y,z);g.add(m)});
+  return g}
+function searchLabel(ct){const L=ct.loot||[];const nm=KIND_NAME[ct.kind]||'it';
+  if(!L.length)return`[E] Search the ${nm} (looks like it's been picked clean)`;
+  const c={};for(const k of L)c[k]=(c[k]||0)+1;return`[E] Search the ${nm} · you can see ${Object.keys(c).map(k=>ITEMS[k]+' '+INAME[k].replace(/^a /,'')).join(', ')}`}
+
+/* ===================== a lookout hut at the trap lever: inside, it can't see you ===================== */
+const BOOTH={x0:16,x1:17,y0:27,y1:28};
+const inBooth=(x,y)=>!!(S&&S.trapM&&x>=BOOTH.x0*T&&x<(BOOTH.x1+1)*T&&y>=BOOTH.y0*T&&y<(BOOTH.y1+1)*T);
+function buildBooth(sc){
+  const M=(w,h,d,mat,x,y,z)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);sc.add(m);return m};
+  const wood=std({map:rtex('grain')}),dark=std({color:0x2a2a2e}),H=2.6;
+  // north wall: low wall with a long window looking out over the cage
+  for(let x=15;x<=18;x++){M(TS,1.0,.25,wood,(x+.5)*TS,.5,26.5*TS+.6);M(TS,.5,.25,wood,(x+.5)*TS,H-.25,26.5*TS+.6)}
+  const gl=new THREE.Mesh(new THREE.PlaneGeometry(4*TS,H-1.5),new THREE.MeshStandardMaterial({color:0x9fc8d8,transparent:true,opacity:.18,roughness:.05}));gl.position.set(17*TS,1.0+(H-1.5)/2,26.5*TS+.6);sc.add(gl);
+  for(let x=15;x<=19;x++)M(.08,H-1.5,.1,dark,x*TS,1.0+(H-1.5)/2,26.5*TS+.6);
+  // side walls, roof and an open doorway at the back
+  for(const x of[15,18])for(let y=26;y<=28;y++)M(.25,H,TS,wood,(x+.5)*TS+(x===15?.6:-.6),H/2,(y+.5)*TS);
+  M(4*TS+.4,.15,3*TS+.4,std({color:0x3a2a24}),17*TS,H+.07,27.5*TS);
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(1.8,.4),new THREE.MeshBasicMaterial({map:canvasTex(256,56,(g,w,h)=>{g.fillStyle='#1a1d20';g.fillRect(0,0,w,h);g.fillStyle='#e8d8a0';g.font='bold 30px sans-serif';g.textAlign='center';g.fillText('LOOKOUT',w/2,40)})}));
+  sign.position.set(17*TS,H+.4,26.5*TS+.45);sign.rotation.y=Math.PI;sc.add(sign);
+  const L=new THREE.PointLight(0xffc880,1.2,6,1.6);L.position.set(17*TS,H-.3,27.6*TS);sc.add(L)}
+
+/* ===================== more realistic insides for the places that still looked generic ===================== */
+function extraDeco(id,o){const {m,I,setDeco,rooms,bx0,by0,bx1,by1,hy,VH}=o;
+  const roomFill=(r,t,stepX,stepY,yo=1)=>{for(let x=r[0]+1;x<=r[2]-1;x+=stepX)for(let y=r[1]+yo;y<=r[3]-1;y+=stepY)setDeco(x,y,t)};
+  switch(id){
+    case 'hospital':rooms.forEach((r,i)=>{if(i%3!==1)for(let x=r[0]+1;x<=r[2]-1;x+=3)setDeco(x,r[1]+1,'hbed')});break;
+    case 'factory':for(let x=bx0+3;x<=VH-4;x+=6)for(const y of[by0+3,hy+2]){for(const dx of[0,1])for(const dy of[0,1])setDeco(x+dx,y+dy,'mach')}for(let x=bx0+2;x<=VH-2;x++)if(x%6!==0)setDeco(x,hy-1,'conv');break;
+    case 'firestation':for(let x=bx0+3;x<=Math.min(VH-3,bx0+10);x++)for(let y=hy-1;y<=hy+1;y++)setDeco(x,y,'eng');for(let x=bx0+2;x<=VH-2;x+=2)setDeco(x,by0+1,'kit');break;
+    case 'police':{const r=rooms[rooms.length-1];if(r)for(let x=r[0]+1;x<=Math.min(r[2]-1,r[0]+6);x++)setDeco(x,r[1]+1,'cell');break}
+    case 'radio':{let n=0;for(const r of rooms){for(let y=r[1]+1;y<=r[3]-1&&n<2;y++)for(let x=r[0]+1;x<=r[2]-2&&n<2;x++){if(m[I(x,y)]===1&&m[I(x+1,y)]===1){setDeco(x,y,'studio');setDeco(x+1,y,'studio');n=2}}if(n)break}break}
+    case 'supermarket':for(let x=bx0+3;x<=VH-3;x++)setDeco(x,by0+1,'freezer');break;
+    case 'petrol':setDeco(bx0+2,by0+1,'coffee');break;
+    case 'school':rooms.forEach(r=>{for(let x=r[0]+2;x<=r[2]-1;x+=2)setDeco(x,r[1]+1,'sdesk')});break}}
+function decoMeshes(sc,list){
+  const M=(w,h,d,mat,x,y,z,p)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);(p||sc).add(m);return m};
+  const C=(rt,rb,h,mat,x,y,z,p)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,10),mat);m.position.set(x,y,z);(p||sc).add(m);return m};
+  const mats={white:std({color:0xeef0ee}),steel:std({color:0xa8acb0,metalness:.7,roughness:.35}),blue:std({color:0x6a9ac8}),sheet:std({color:0xdfe8ee}),dark:std({color:0x222428}),
+    hazard:std({map:canvasTex(64,16,(g,w,h)=>{g.fillStyle='#e8c020';g.fillRect(0,0,w,h);g.fillStyle='#111';for(let x=-16;x<w;x+=16){g.beginPath();g.moveTo(x,h);g.lineTo(x+8,h);g.lineTo(x+16,0);g.lineTo(x+8,0);g.fill()}})}),
+    machine:std({color:0x5a7a6a,metalness:.4,roughness:.5}),red:std({color:0xc0392b}),tan:std({color:0xb8a060}),yellow:std({color:0xe8c020})};
+  const eng=[];
+  for(const [i,t] of list){const X=(i%MW+.5)*TS,Z=((i/MW|0)+.5)*TS;
+    switch(t){
+      case 'hbed':{M(TS*.5,.08,TS*.92,mats.steel,X,.55,Z);M(TS*.48,.14,TS*.88,mats.white,X,.66,Z);M(TS*.49,.04,TS*.6,mats.blue,X,.75,Z+.25);M(.36,.08,.22,mats.white,X,.78,Z-.62);
+        M(TS*.52,.7,.05,mats.steel,X,.75,Z-.95);for(const sx of[-1,1]){M(.03,.25,TS*.5,mats.steel,X+sx*TS*.26,.85,Z);for(const sz of[-1,1])C(.04,.04,.12,mats.dark,X+sx*TS*.22,.06,Z+sz*TS*.4)}
+        C(.015,.015,1.8,mats.steel,X+TS*.35,.9,Z-.6);M(.14,.2,.04,new THREE.MeshStandardMaterial({color:0xd8f0ff,transparent:true,opacity:.7}),X+TS*.35,1.7,Z-.6);
+        const cur=new THREE.Mesh(new THREE.PlaneGeometry(TS*.9,1.7),std({color:0x8ab0a0,side:THREE.DoubleSide}));cur.position.set(X+TS*.48,1.2,Z);cur.rotation.y=Math.PI/2;sc.add(cur);break}
+      case 'mach':break;
+      case 'conv':{M(TS,.08,.7,mats.dark,X,.85,Z);for(let k=0;k<4;k++){const r=C(.05,.05,.72,mats.steel,X-TS/2+k*TS/4+.25,.8,Z);r.rotation.x=Math.PI/2}for(const sz of[-1,1])M(.06,.8,.06,mats.steel,X,.4,Z+sz*.32);
+        if(Math.random()<.5)M(.35,.3,.35,std({map:rtex('card')}),X,1.05,Z);break}
+      case 'eng':eng.push([X,Z]);break;
+      case 'kit':{M(TS*.85,2,.4,mats.steel,X,1,Z-.6);for(let k=0;k<2;k++){const kx=X+(k-.5)*.7;M(.5,.8,.18,mats.tan,kx,1.15,Z-.38);M(.5,.06,.2,mats.yellow,kx,.95,Z-.37);const hl=new THREE.Mesh(new THREE.SphereGeometry(.17,10,8,0,6.28,0,1.6),mats.yellow);hl.position.set(kx,1.75,Z-.4);sc.add(hl);M(.25,.35,.25,mats.dark,kx,.18,Z-.45)}break}
+      case 'cell':{for(let k=0;k<9;k++)C(.02,.02,2.6,mats.steel,X-TS/2+.1+k*TS/9,1.3,Z+TS*.45);M(TS,.08,.08,mats.steel,X,2.55,Z+TS*.45);M(TS,.08,.08,mats.steel,X,.1,Z+TS*.45);M(TS*.85,.08,.55,mats.steel,X,.45,Z-.5);M(.45,.06,.4,std({color:0x9aa0a8}),X,.52,Z-.5);break}
+      case 'studio':{M(TS*.95,.8,.8,mats.dark,X,.4,Z);const cons=canvasTex(128,64,(g,w,h)=>{g.fillStyle='#1a1a1e';g.fillRect(0,0,w,h);for(let k=0;k<12;k++){g.fillStyle='#555';g.fillRect(6+k*10,8,3,46);g.fillStyle=pick(['#e04040','#40e080','#e0c040']);g.fillRect(4+k*10,10+Math.random()*36,7,5)}});
+        const c2=M(TS*.8,.06,.5,std({map:cons}),X,.83,Z);c2.rotation.x=-.2;C(.015,.015,.5,mats.steel,X,1.08,Z-.2);const mic=new THREE.Mesh(new THREE.SphereGeometry(.06,10,8),mats.dark);mic.position.set(X,1.36,Z-.2);sc.add(mic);
+        const oa=new THREE.Mesh(new THREE.PlaneGeometry(.9,.3),new THREE.MeshBasicMaterial({map:canvasTex(128,40,(g,w,h)=>{g.fillStyle='#c01010';g.fillRect(0,0,w,h);g.fillStyle='#fff';g.font='bold 24px sans-serif';g.textAlign='center';g.fillText('ON AIR',w/2,30)})}));oa.position.set(X,2.5,Z-.9);sc.add(oa);break}
+      case 'freezer':{M(TS*.98,.85,TS*.75,mats.white,X,.43,Z);const fz=M(TS*.9,.02,TS*.66,std({map:rtex('food')}),X,.8,Z);M(TS*.92,.03,TS*.68,new THREE.MeshStandardMaterial({color:0xcfe8ff,transparent:true,opacity:.3,roughness:.05}),X,.87,Z);break}
+      case 'coffee':{M(.9,.9,.6,mats.dark,X,.45,Z);M(.7,.7,.5,mats.red,X,1.25,Z);M(.3,.2,.02,std({map:rtex('screen')}),X,1.35,Z+.26);break}
+      case 'sdesk':{M(.9,.04,.55,std({color:0xc8a878}),X,.62,Z+.1);for(const sx of[-1,1])M(.03,.6,.5,mats.steel,X+sx*.42,.3,Z+.1);M(.38,.04,.36,std({color:0x2e86c1}),X,.38,Z+.65);M(.38,.32,.03,std({color:0x2e86c1}),X,.56,Z+.84);
+        if(Math.random()<.6)M(.22,.03,.16,std({color:pick([0xc0392b,0x27ae60,0xf1c40f])}),X+rnd(-.2,.2),.65,Z+.05);break}}}
+  // machines are drawn as one big block per 2x2 group
+  const done=new Set();for(const [i,t] of list){if(t!=='mach'||done.has(i))continue;const x=i%MW,y=i/MW|0;[[0,0],[1,0],[0,1],[1,1]].forEach(([a,b])=>done.add((y+b)*MW+x+a));
+    const X=(x+1)*TS,Z=(y+1)*TS;M(TS*1.8,.2,TS*1.8,mats.hazard,X,.1,Z);M(TS*1.4,1.6,TS*1.2,mats.machine,X,1,Z);M(TS*.6,.9,TS*.5,mats.machine,X+.6,2.2,Z-.3);M(.5,.5,.12,mats.dark,X-1.2,1.3,Z+1);
+    const b=new THREE.Mesh(new THREE.SphereGeometry(.08,10,8),mats.red);b.position.set(X-1.2,1.6,Z+1.07);sc.add(b);C(.25,.25,.5,mats.steel,X+.3,.45,Z+1.2).rotation.x=Math.PI/2}
+  // the fire engine in its bay
+  if(eng.length){let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;for(const [x,z] of eng){x0=Math.min(x0,x);x1=Math.max(x1,x);z0=Math.min(z0,z);z1=Math.max(z1,z)}
+    const g=new THREE.Group();g.position.set((x0+x1)/2,0,(z0+z1)/2);sc.add(g);const L=x1-x0+TS*.6,red=std({color:0xb81a1a,roughness:.4,metalness:.4});
+    M(L,2.2,2.3,red,0,1.55,0,g);M(L*.25,.9,2.31,std({color:0x0d1418,metalness:.8,roughness:.1}),L*.36,2.1,0,g);M(L+.02,.25,2.32,mats.yellow,0,1.2,0,g);M(L*.75,.15,.7,mats.steel,-L*.08,2.75,0,g);
+    for(const k of[-.32,.05,.32])for(const sz of[-1,1]){const w=C(.5,.5,.35,mats.dark,L*k,.5,sz*1.1,g);w.rotation.x=Math.PI/2}
+    const lb=M(.4,.15,1.6,new THREE.MeshBasicMaterial({color:0x3a6aff}),L*.45,2.72,0,g)}}
 
 titleScreen();
 </script>
