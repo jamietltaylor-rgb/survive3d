@@ -228,7 +228,9 @@ function mkPerson(id){
 function addLog(t,cls){G.log.push({t,cls})}
 const ST=()=>STARTS[G.start];
 
+function jtE(n,v){try{if(!(typeof TEST!=='undefined'&&TEST.on)&&window.jtEvent)window.jtEvent(n,v)}catch(e){}}
 function newGame(startId){
+  jtE('game_started');
   if(startId==='random')startId=pick(Object.keys(STARTS));
   const S0=STARTS[startId];
   G={day:1,max:20,start:startId,inv:{...S0.inv},tools:{shovel:!!S0.tools,pickaxe:!!S0.tools},people:[mkPerson('you')],
@@ -467,7 +469,7 @@ function endDay(){
     if(p.hp>0){p.hp=Math.min(100,p.hp);continue}
     if(p.id==='you'){G.log.push(...lines.map(t=>({t})));return finish(youCause||'starved')}
     G.people=G.people.filter(q=>q!==p);G.deaths.push(p.name);lines.push(`🕯️ ${p.name} didn't make it through the night.`)}
-  breedNight(lines);G.day++;G.acted=false;G.storm=false;G.tmsg='';
+  breedNight(lines);G.day++;jtE('night_survived');G.acted=false;G.storm=false;G.tmsg='';
   updateTunnelLinks();resetEnergy();
   addLog(`— Day ${G.day} —`,'day');lines.forEach(t=>addLog(t));
   if(G.day===2)addLog('📻 A new voice on the radio: "...this is Dr. Hale, from Project Listener. It can\'t be killed. But it CAN be caged. You\'ll need heavy chains, a car battery, a loudspeaker and a floodlight. Build a cage, call it in with noise, drop the cage, and keep the light on it..." (Check the plan on your notice board.)');
@@ -2267,7 +2269,7 @@ function jumpscare(){
   cx.clearRect(0,0,innerWidth,innerHeight);cx.fillStyle='rgba(140,0,0,.35)';cx.fillRect(0,0,innerWidth,innerHeight);
 }
 function caught(){
-  if(!S.running)return;if(ADMIN.god){const c=S.cre;c.stun=4;c.state='flee';try{pickFlee(c)}catch(e){}showMsg('🛡️ God mode: it bounced right off you.',1.6);return}S.running=false;stopDrone();scream();unlock();if(SET.jump)jumpscare();else{cx.clearRect(0,0,innerWidth,innerHeight);cx.fillStyle='rgba(0,0,0,.9)';cx.fillRect(0,0,innerWidth,innerHeight)}
+  if(!S.running)return;if(ADMIN.god){const c=S.cre;c.stun=4;c.state='flee';try{pickFlee(c)}catch(e){}showMsg('🛡️ God mode: it bounced right off you.',1.6);return}S.running=false;jtE('caught');stopDrone();scream();unlock();if(SET.jump)jumpscare();else{cx.clearRect(0,0,innerWidth,innerHeight);cx.fillStyle='rgba(0,0,0,.9)';cx.fillRect(0,0,innerWidth,innerHeight)}
   const y=you();y.hp-=45;
   let txt=S.caughtText||`🌑 It caught you at the ${LOCS[S.id].name.toLowerCase()}. You tore free and ran, but dropped everything (-45 HP).`;
   if(S.follower){G.lost++;txt+=` ${S.follower.name} didn't make it out.`}
@@ -2488,7 +2490,7 @@ function promptText(){
 /* ---------- endings ---------- */
 function finish(forced){
   stopScav();closeDlg();
-  let e=forced;
+  let e=forced;if(!finish.cs){jtE('ending_reached');if(forced==='trapped')jtE('trap_won')}
   const others=G.people.filter(p=>p.id!=='you');
   if(!e||e==='trapped'){
     const linked=Object.values(G.locs).filter(l=>l.tunnel).length,elig=[];
@@ -3869,6 +3871,7 @@ function adminPanel(){
     h+=sec('Creatures',`<select id="admLoc" style="background:#151518;color:#ddd;border:1px solid #444;padding:4px">${locOpts}</select> <select id="admBreed" style="background:#151518;color:#ddd;border:1px solid #444;padding:4px">${breedOpts}</select> `+b('Set nest',"admBreed()")+b('Clear all nests',"admClearBreeds()"));
     h+=sec('Go somewhere now',`<select id="admGo" style="background:#151518;color:#ddd;border:1px solid #444;padding:4px">${locOpts}${trapReady()?'<option value="trapsite">🪤 Town Square (trap)</option>':''}</select> `+b('🌞 By day',"admGo(true)")+b('🌙 By night',"admGo(false)"));}
   h+=sec('Endings & scenes',b('🔁 Reset found endings',"setEndings([]);adminMsg('Found endings cleared')")+b('🏆 Mark all endings found',"setEndings(Object.keys(ENDINGS));adminMsg('All endings marked found')")+b('🎬 Play opening cutscene',"adminClose();playIntro(()=>{if(G&&!G.over&&!(HM&&HM.running))enterHome();else if(!G)titleScreen()})")+(inGame?b('🚁 Play rescue cutscene',"adminClose();admRescue()"):''));
+  h+=sec('📊 All my sites',`<span class="small dim">Visitors, errors, feedback, banner and maintenance for all your sites, including this game. Uses your main admin password.</span><br>`+b('📊 Open site stats',"adminClose();window.jtAdmin&&window.jtAdmin()",'amber'));
   h+=sec('🧪 Test mode',`<span class="small dim">Play on a copy of your game: jump to any day, any place, any creature, any trap stage. Nothing is saved.</span><br>`+b(TEST.on?'🧪 Open test launcher':'🧪 Start test mode',"testEnter()",'amber')+(TEST.on?b('🚪 Leave test mode',"testExit()",'red'):''));
   h+=`</div><div style="margin-top:10px">${b('Close','adminClose()','amber')}${b('🔒 Lock again',"try{sessionStorage.removeItem('qo_admin')}catch(e){};adminClose()")}</div>`;
   dlg(h);$('#dlgbox').style.maxWidth='760px'}
@@ -3959,5 +3962,7 @@ function testEnding(){const e=$('#teEnd').value;ADMIN.open=false;closeDlg();stop
 
 titleScreen();
 </script>
+<script>window.__JT_NO_CORNER__=1</script>
+<script src="jt-stats.js?v=5" defer></script>
 </body>
 </html>
